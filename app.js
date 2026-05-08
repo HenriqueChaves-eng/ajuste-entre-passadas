@@ -24,10 +24,18 @@ const outputs = {
   implementWidth: document.querySelector("#resultImplementWidth"),
   correctedWidth: document.querySelector("#resultCorrectedWidth"),
   correctedOffset: document.querySelector("#resultCorrectedOffset"),
-  turn: document.querySelector("#resultTurn"),
-  widthDelta: document.querySelector("#resultWidthDelta"),
-  offsetDelta: document.querySelector("#resultOffsetDelta"),
   error: document.querySelector("#formError"),
+  fieldGuide: document.querySelector("#fieldGuide"),
+  fieldGapLeft: document.querySelector("#fieldGapLeft"),
+  fieldGapRight: document.querySelector("#fieldGapRight"),
+  turnCurve: document.querySelector("#turnCurve"),
+  machineImage: document.querySelector("#machineImage"),
+  laneA: document.querySelector("#laneA"),
+  laneB: document.querySelector("#laneB"),
+  laneC: document.querySelector("#laneC"),
+  laneALabel: document.querySelector("#laneALabel"),
+  laneBLabel: document.querySelector("#laneBLabel"),
+  laneCLabel: document.querySelector("#laneCLabel"),
   history: document.querySelector("#historyList"),
   status: document.querySelector("#connectionStatus")
 };
@@ -41,20 +49,20 @@ function parseDecimal(value) {
   return Number(normalized);
 }
 
-function formatInput(value, digits = 3) {
+function formatInput(value, digits = 2) {
   return Number(value).toFixed(digits).replace(".", ",");
 }
 
-function formatMeters(value) {
+function formatMeters(value, digits = 3) {
   return `${Number(value).toLocaleString("pt-BR", {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
   })} m`;
 }
 
-function formatSignedMeters(value) {
-  if (Object.is(value, -0)) return formatMeters(0);
-  return formatMeters(value);
+function formatSignedMeters(value, digits = 3) {
+  if (Object.is(value, -0)) return formatMeters(0, digits);
+  return formatMeters(value, digits);
 }
 
 function loadState() {
@@ -130,6 +138,11 @@ function calculate(values) {
   };
 }
 
+function setLanePass(lane, passClass) {
+  lane.classList.remove("pass-one", "pass-two", "pass-three");
+  lane.classList.add(passClass);
+}
+
 function render() {
   const error = validate(state);
   outputs.error.textContent = error;
@@ -144,12 +157,27 @@ function render() {
   document.querySelector("#copyButton").disabled = false;
   latest = calculate(state);
 
-  outputs.implementWidth.textContent = formatMeters(latest.implementWidth);
+  outputs.implementWidth.textContent = formatMeters(latest.implementWidth, 2);
   outputs.correctedWidth.textContent = formatMeters(latest.correctedWidth);
   outputs.correctedOffset.textContent = formatSignedMeters(latest.correctedOffset);
-  outputs.turn.textContent = state.turn === "right" ? "Direita" : "Esquerda";
-  outputs.widthDelta.textContent = formatSignedMeters(latest.widthDelta);
-  outputs.offsetDelta.textContent = formatSignedMeters(latest.offsetDelta);
+  const turnRight = state.turn === "right";
+  const measured12Text = `1ª-2ª: ${formatMeters(state.measured12, 2)}`;
+  const measured23Text = `2ª-3ª: ${formatMeters(state.measured23, 2)}`;
+
+  outputs.fieldGuide.classList.toggle("turn-right", turnRight);
+  outputs.fieldGuide.classList.toggle("turn-left", !turnRight);
+  outputs.laneALabel.textContent = turnRight ? "1ª" : "3ª";
+  outputs.laneBLabel.textContent = "2ª";
+  outputs.laneCLabel.textContent = turnRight ? "3ª" : "1ª";
+  setLanePass(outputs.laneA, turnRight ? "pass-one" : "pass-three");
+  setLanePass(outputs.laneB, "pass-two");
+  setLanePass(outputs.laneC, turnRight ? "pass-three" : "pass-one");
+  outputs.fieldGapLeft.textContent = turnRight ? measured12Text : measured23Text;
+  outputs.fieldGapRight.textContent = turnRight ? measured23Text : measured12Text;
+  outputs.turnCurve.setAttribute("d", turnRight
+    ? "M 160 102 C 210 72 300 72 342 102"
+    : "M 560 102 C 510 72 420 72 378 102");
+  outputs.machineImage.setAttribute("x", turnRight ? "78" : "526");
 
   persistState();
 }
@@ -186,7 +214,7 @@ function renderHistory() {
     <button class="history-item" type="button" data-history-id="${item.id}">
       <span>
         <strong>${item.date}</strong>
-        <span>${item.values.rows || 0} linhas | Virada ${item.values.turn === "right" ? "Direita" : "Esquerda"} | 1ª-2ª ${formatMeters(item.values.measured12)}</span>
+        <span>${item.values.rows || 0} linhas | Virada ${item.values.turn === "right" ? "Direita" : "Esquerda"} | 1ª-2ª ${formatMeters(item.values.measured12, 2)}</span>
       </span>
       <span>
         <strong>${formatMeters(item.result.correctedWidth)}</strong>
@@ -208,13 +236,13 @@ function restoreHistory(id) {
 function resultText() {
   return [
     "Ajuste de Espaçamento Entre Passadas",
-    `Espaçamento entre linhas da Plantadeira: ${formatMeters(state.spacing)}`,
+    `Espaçamento entre linhas da Plantadeira: ${formatMeters(state.spacing, 2)}`,
     `Quantidade de linhas: ${state.rows}`,
-    `Largura do Implemento calculada: ${formatMeters(latest.implementWidth)}`,
-    `Deslocamento lateral do Implemento: ${formatSignedMeters(state.initialOffset)}`,
+    `Largura do Implemento calculada: ${formatMeters(latest.implementWidth, 2)}`,
+    `Deslocamento lateral do Implemento: ${formatSignedMeters(state.initialOffset, 2)}`,
     `Virada entre a 1ª e a 2ª passada: ${state.turn === "right" ? "Direita" : "Esquerda"}`,
-    `Espaçamento medido entre a 1ª e a 2ª passada: ${formatMeters(state.measured12)}`,
-    `Espaçamento medido entre a 2ª e a 3ª passada: ${formatMeters(state.measured23)}`,
+    `Espaçamento medido entre a 1ª e a 2ª passada: ${formatMeters(state.measured12, 2)}`,
+    `Espaçamento medido entre a 2ª e a 3ª passada: ${formatMeters(state.measured23, 2)}`,
     `Largura do Implemento corrigido: ${formatMeters(latest.correctedWidth)}`,
     `Deslocamento Lateral Corrigido: ${formatSignedMeters(latest.correctedOffset)}`
   ].join("\n");

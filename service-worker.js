@@ -1,4 +1,4 @@
-const CACHE_NAME = "agres-espacamento-product-v8";
+const CACHE_NAME = "agres-espacamento-product-v22";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -6,7 +6,8 @@ const APP_ASSETS = [
   "./app.js",
   "./manifest.webmanifest",
   "./assets/agres-brand.jpeg",
-  "./assets/logo_agres.png"
+  "./assets/logo_agres.png",
+  "./assets/tractor-planter-top.png"
 ];
 
 self.addEventListener("install", (event) => {

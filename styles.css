@@ -157,7 +157,7 @@ button:disabled {
 
 .calculator-layout {
   display: grid;
-  grid-template-columns: minmax(360px, 0.95fr) minmax(340px, 1.05fr);
+  grid-template-columns: minmax(430px, 1.18fr) minmax(300px, 0.82fr);
   gap: 14px;
   align-items: start;
   min-width: 0;
@@ -252,6 +252,166 @@ button:disabled {
   font-weight: 820;
 }
 
+.field-guide {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #f5f7f6;
+}
+
+.guide-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.guide-title strong {
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 840;
+}
+
+.guide-title span {
+  color: #4b6f58;
+  font-size: 0.78rem;
+  font-weight: 820;
+  text-align: right;
+}
+
+.top-field {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #e9eee8;
+}
+
+.field-map {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.field-map text {
+  font-family: inherit;
+  text-anchor: middle;
+}
+
+.map-soil {
+  fill: #f3f5f3;
+  stroke: #d9ded8;
+  stroke-width: 2;
+}
+
+.guide-line {
+  stroke-linecap: round;
+}
+
+.field-lane.pass-one .guide-line,
+.field-lane.pass-three .guide-line {
+  stroke: #b8c2bd;
+  stroke-width: 4;
+  stroke-dasharray: 10 10;
+}
+
+.field-lane.pass-two .guide-line {
+  stroke: #b8c2bd;
+  stroke-width: 4;
+  stroke-dasharray: 10 10;
+}
+
+.travel-arrow {
+  display: none;
+  fill: none;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.field-lane.pass-two .arrow-down {
+  display: block;
+  stroke: #c84b45;
+}
+
+.field-lane.pass-three .arrow-up {
+  display: block;
+  stroke: #315c88;
+}
+
+.lane-chip {
+  fill: #ffffff;
+  stroke: #d1d5d1;
+  stroke-width: 2;
+}
+
+.field-lane.pass-one .lane-chip {
+  fill: #e6f1e9;
+}
+
+.field-lane.pass-two .lane-chip {
+  fill: #f0f0f0;
+  stroke: #9d9e9f;
+}
+
+.field-lane.pass-three .lane-chip {
+  fill: #e8eef4;
+}
+
+.field-lane.pass-one .lane-number {
+  fill: #245b36;
+}
+
+.field-lane.pass-two .lane-number {
+  fill: #3f4042;
+}
+
+.field-lane.pass-three .lane-number {
+  fill: #315c88;
+}
+
+.lane-number {
+  font-size: 29px;
+  font-weight: 900;
+}
+
+.turn-curve {
+  fill: none;
+  stroke: #4c7758;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#turnArrow path {
+  fill: #4c7758;
+}
+
+.machine-image {
+  mix-blend-mode: multiply;
+}
+
+.gap-measure line {
+  stroke: rgba(66, 67, 69, 0.5);
+  stroke-width: 2;
+  stroke-dasharray: 8 6;
+  stroke-linecap: round;
+}
+
+.gap-measure rect {
+  fill: #ffffff;
+  stroke: #b8b8b8;
+  stroke-width: 2;
+}
+
+.gap-measure text {
+  fill: var(--text);
+  font-size: 18px;
+  font-weight: 850;
+}
+
 .input-shell:focus-within {
   border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(95, 96, 98, 0.16);
@@ -329,8 +489,7 @@ button:disabled {
   border-color: #c9c9c9;
 }
 
-.terminal-value span,
-.summary-list span {
+.terminal-value span {
   color: var(--muted);
   font-size: 0.86rem;
   font-weight: 760;
@@ -341,32 +500,6 @@ button:disabled {
   font-size: 1.85rem;
   line-height: 1;
   font-weight: 830;
-}
-
-.summary-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.summary-list div {
-  min-height: 74px;
-  display: grid;
-  align-content: center;
-  gap: 6px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px;
-  background: var(--surface);
-}
-
-.summary-list strong {
-  color: var(--text);
-  font-size: 1rem;
-  line-height: 1.1;
-  font-weight: 800;
-  overflow-wrap: anywhere;
 }
 
 .form-error {
@@ -466,12 +599,6 @@ button:disabled {
   font-weight: 730;
 }
 
-@media (max-width: 920px) {
-  .summary-list {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 760px) {
   .app-shell {
     width: 100%;
@@ -526,6 +653,14 @@ button:disabled {
 
   .terminal-value strong {
     font-size: 1.55rem;
+  }
+
+  .guide-title {
+    display: grid;
+  }
+
+  .guide-title span {
+    text-align: left;
   }
 
   .action-row .secondary-button,

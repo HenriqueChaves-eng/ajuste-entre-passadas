@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="assets/logo_agres.png">
     <link rel="icon" href="assets/logo_agres.png">
-    <link rel="stylesheet" href="styles.css?v=agres-product8">
+    <link rel="stylesheet" href="styles.css?v=agres-product22">
   </head>
   <body>
     <svg aria-hidden="true" class="sprite">
@@ -103,9 +103,70 @@
               <div class="field">
                 <span>Virada entre a 1ª e a 2ª passada</span>
                 <div class="choice" role="radiogroup" aria-label="Virada entre a primeira e a segunda passada">
-                  <button type="button" role="radio" aria-checked="false" data-turn="right">Direita</button>
                   <button type="button" role="radio" aria-checked="true" data-turn="left">Esquerda</button>
+                  <button type="button" role="radio" aria-checked="false" data-turn="right">Direita</button>
                 </div>
+              </div>
+
+              <div class="field-guide turn-left" id="fieldGuide" aria-label="Vista superior das passadas no campo">
+                <div class="guide-title">
+                  <strong>Vista superior do campo</strong>
+                </div>
+
+                <div class="top-field">
+                  <svg class="field-map" viewBox="0 0 720 310" role="img" aria-labelledby="fieldMapTitle">
+                    <title id="fieldMapTitle">Vista superior das passadas com trator e plantadeira</title>
+                    <defs>
+                      <marker id="turnArrow" viewBox="0 0 10 10" refX="8.6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                        <path d="M 0 0 L 10 5 L 0 10 z"></path>
+                      </marker>
+                    </defs>
+
+                    <rect class="map-soil" x="10" y="10" width="700" height="290" rx="18"></rect>
+
+                    <g class="field-lane lane-a pass-three" id="laneA">
+                      <line class="guide-line" x1="136" y1="72" x2="136" y2="224"></line>
+                      <path class="travel-arrow arrow-up" d="M 136 194 L 136 126 M 122 140 L 136 126 L 150 140"></path>
+                      <path class="travel-arrow arrow-down" d="M 136 126 L 136 194 M 122 180 L 136 194 L 150 180"></path>
+                      <circle class="lane-chip" cx="136" cy="56" r="26"></circle>
+                      <text class="lane-number" id="laneALabel" x="136" y="64">3ª</text>
+                    </g>
+                    <g class="field-lane lane-b pass-two" id="laneB">
+                      <line class="guide-line" x1="360" y1="72" x2="360" y2="224"></line>
+                      <path class="travel-arrow arrow-up" d="M 360 194 L 360 126 M 346 140 L 360 126 L 374 140"></path>
+                      <path class="travel-arrow arrow-down" d="M 360 126 L 360 194 M 346 180 L 360 194 L 374 180"></path>
+                      <circle class="lane-chip" cx="360" cy="56" r="26"></circle>
+                      <text class="lane-number" id="laneBLabel" x="360" y="64">2ª</text>
+                    </g>
+                    <g class="field-lane lane-c pass-one" id="laneC">
+                      <line class="guide-line" x1="584" y1="72" x2="584" y2="224"></line>
+                      <path class="travel-arrow arrow-up" d="M 584 194 L 584 126 M 570 140 L 584 126 L 598 140"></path>
+                      <path class="travel-arrow arrow-down" d="M 584 126 L 584 194 M 570 180 L 584 194 L 598 180"></path>
+                      <circle class="lane-chip" cx="584" cy="56" r="26"></circle>
+                      <text class="lane-number" id="laneCLabel" x="584" y="64">1ª</text>
+                    </g>
+
+                    <path class="turn-curve" id="turnCurve" d="M 560 102 C 510 72 420 72 378 102" marker-end="url(#turnArrow)"></path>
+
+                    <image class="machine-image" id="machineImage" href="assets/tractor-planter-top.png" x="526" y="112" width="116" height="116" preserveAspectRatio="xMidYMid meet"></image>
+
+                    <g class="gap-measure gap-left">
+                      <line x1="136" y1="278" x2="360" y2="278"></line>
+                      <line x1="136" y1="269" x2="136" y2="287"></line>
+                      <line x1="360" y1="269" x2="360" y2="287"></line>
+                      <rect x="166" y="258" width="164" height="28" rx="14"></rect>
+                      <text id="fieldGapLeft" x="248" y="277">2ª-3ª: 0,000 m</text>
+                    </g>
+                    <g class="gap-measure gap-right">
+                      <line x1="360" y1="278" x2="584" y2="278"></line>
+                      <line x1="360" y1="269" x2="360" y2="287"></line>
+                      <line x1="584" y1="269" x2="584" y2="287"></line>
+                      <rect x="390" y="258" width="164" height="28" rx="14"></rect>
+                      <text id="fieldGapRight" x="472" y="277">1ª-2ª: 0,000 m</text>
+                    </g>
+                  </svg>
+                </div>
+
               </div>
 
               <label class="field">
@@ -160,20 +221,6 @@
               </div>
             </div>
 
-            <div class="summary-list">
-              <div>
-                <span>Virada selecionada</span>
-                <strong id="resultTurn">Esquerda</strong>
-              </div>
-              <div>
-                <span>Variação da largura</span>
-                <strong id="resultWidthDelta">0,000 m</strong>
-              </div>
-              <div>
-                <span>Variação do deslocamento</span>
-                <strong id="resultOffsetDelta">0,000 m</strong>
-              </div>
-            </div>
           </aside>
         </div>
       </section>
@@ -195,6 +242,6 @@
       </section>
     </main>
 
-    <script src="app.js?v=agres-product8"></script>
+    <script src="app.js?v=agres-product22"></script>
   </body>
 </html>
