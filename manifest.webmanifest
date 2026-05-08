@@ -1,7 +1,7 @@
 {
   "name": "Ajuste de Espaçamento Entre Passadas",
   "short_name": "Entre Passadas",
-  "description": "Ajuste offline de espaçamento entre passadas da plantadeira.",
+  "description": "Ajuste Offline de Espaçamento Entre Passadas da Plantadeira.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

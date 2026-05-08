@@ -206,7 +206,7 @@ function renderHistory() {
   const history = loadHistory();
 
   if (!history.length) {
-    outputs.history.innerHTML = '<div class="history-empty">Nenhum cálculo salvo</div>';
+    outputs.history.innerHTML = '<div class="history-empty">Nenhum Cálculo Salvo</div>';
     return;
   }
 
@@ -214,7 +214,7 @@ function renderHistory() {
     <button class="history-item" type="button" data-history-id="${item.id}">
       <span>
         <strong>${item.date}</strong>
-        <span>${item.values.rows || 0} linhas | Virada ${item.values.turn === "right" ? "Direita" : "Esquerda"} | 1ª-2ª ${formatMeters(item.values.measured12, 2)}</span>
+        <span>${item.values.rows || 0} Linhas | Virada ${item.values.turn === "right" ? "Direita" : "Esquerda"} | 1ª-2ª ${formatMeters(item.values.measured12, 2)}</span>
       </span>
       <span>
         <strong>${formatMeters(item.result.correctedWidth)}</strong>
@@ -236,14 +236,14 @@ function restoreHistory(id) {
 function resultText() {
   return [
     "Ajuste de Espaçamento Entre Passadas",
-    `Espaçamento entre linhas da Plantadeira: ${formatMeters(state.spacing, 2)}`,
-    `Quantidade de linhas: ${state.rows}`,
-    `Largura do Implemento calculada: ${formatMeters(latest.implementWidth, 2)}`,
-    `Deslocamento lateral do Implemento: ${formatSignedMeters(state.initialOffset, 2)}`,
-    `Virada entre a 1ª e a 2ª passada: ${state.turn === "right" ? "Direita" : "Esquerda"}`,
-    `Espaçamento medido entre a 1ª e a 2ª passada: ${formatMeters(state.measured12, 2)}`,
-    `Espaçamento medido entre a 2ª e a 3ª passada: ${formatMeters(state.measured23, 2)}`,
-    `Largura do Implemento corrigido: ${formatMeters(latest.correctedWidth)}`,
+    `Espaçamento Entre Linhas da Plantadeira: ${formatMeters(state.spacing, 2)}`,
+    `Quantidade de Linhas: ${state.rows}`,
+    `Largura do Implemento Calculada: ${formatMeters(latest.implementWidth, 2)}`,
+    `Deslocamento Lateral do Implemento: ${formatSignedMeters(state.initialOffset, 2)}`,
+    `Virada Entre a 1ª e a 2ª Passada: ${state.turn === "right" ? "Direita" : "Esquerda"}`,
+    `Espaçamento Medido Entre a 1ª e a 2ª Passada: ${formatMeters(state.measured12, 2)}`,
+    `Espaçamento Medido Entre a 2ª e a 3ª Passada: ${formatMeters(state.measured23, 2)}`,
+    `Largura do Implemento Corrigido: ${formatMeters(latest.correctedWidth)}`,
     `Deslocamento Lateral Corrigido: ${formatSignedMeters(latest.correctedOffset)}`
   ].join("\n");
 }
@@ -275,7 +275,7 @@ function showView(name) {
 }
 
 function updateConnectionStatus() {
-  outputs.status.textContent = navigator.onLine ? "Online" : "Offline pronto";
+  outputs.status.textContent = navigator.onLine ? "Online" : "Offline Pronto";
 }
 
 document.querySelectorAll("input").forEach((input) => {
