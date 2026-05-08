@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f4f5f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Ajuste Entre Passadas">
+    <title>Ajuste de Espaçamento Entre Passadas</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="assets/logo_agres.png">
+    <link rel="icon" href="assets/logo_agres.png">
+    <link rel="stylesheet" href="styles.css?v=agres-product8">
+  </head>
+  <body>
+    <svg aria-hidden="true" class="sprite">
+      <symbol id="icon-reset" viewBox="0 0 24 24">
+        <path d="M4 7v5h5"></path>
+        <path d="M5.2 11a7 7 0 1 0 1.8-6.7L4 7"></path>
+      </symbol>
+      <symbol id="icon-save" viewBox="0 0 24 24">
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+        <path d="M17 21v-8H7v8"></path>
+        <path d="M7 3v5h8"></path>
+      </symbol>
+      <symbol id="icon-copy" viewBox="0 0 24 24">
+        <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+      </symbol>
+      <symbol id="icon-trash" viewBox="0 0 24 24">
+        <path d="M3 6h18"></path>
+        <path d="M8 6V4h8v2"></path>
+        <path d="M19 6l-1 14H6L5 6"></path>
+        <path d="M10 11v5"></path>
+        <path d="M14 11v5"></path>
+      </symbol>
+    </svg>
+
+    <main class="app-shell">
+      <header class="app-header">
+        <div class="brand">
+          <img src="assets/agres-brand.jpeg" alt="Agres">
+          <div>
+            <p>Plantadeira</p>
+            <h1>Ajuste de Espaçamento Entre Passadas</h1>
+          </div>
+        </div>
+        <span class="status-pill" id="connectionStatus">Offline pronto</span>
+      </header>
+
+      <nav class="tabs" aria-label="Visualização">
+        <button class="tab active" type="button" data-view="calculator">Cálculo</button>
+        <button class="tab" type="button" data-view="history">Histórico</button>
+      </nav>
+
+      <section class="view active" id="calculatorView">
+        <div class="calculator-layout">
+          <section class="card form-card" aria-labelledby="inputsTitle">
+            <div class="card-heading">
+              <p>Entradas</p>
+              <h2 id="inputsTitle">Medidas em metros</h2>
+            </div>
+
+            <div class="form-block">
+              <h3>Valores iniciais</h3>
+
+              <label class="field">
+                <span>Espaçamento entre linhas da plantadeira</span>
+                <div class="input-shell">
+                  <input id="inputSpacing" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Espaçamento entre linhas da plantadeira">
+                  <em>m</em>
+                </div>
+              </label>
+
+              <label class="field">
+                <span>Quantidade de linhas</span>
+                <div class="input-shell">
+                  <input id="inputRows" inputmode="numeric" enterkeyhint="done" autocomplete="off" aria-label="Quantidade de linhas">
+                  <em>linhas</em>
+                </div>
+              </label>
+
+              <div class="field">
+                <span>Largura do implemento calculada</span>
+                <div class="calculated-shell">
+                  <strong id="resultImplementWidth">0,000 m</strong>
+                </div>
+              </div>
+
+              <label class="field">
+                <span>Deslocamento lateral do implemento</span>
+                <div class="input-shell">
+                  <input id="inputInitialOffset" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Deslocamento lateral do implemento">
+                  <em>m</em>
+                </div>
+              </label>
+            </div>
+
+            <div class="form-block">
+              <h3>Medições no campo</h3>
+
+              <div class="field">
+                <span>Virada entre a 1ª e a 2ª passada</span>
+                <div class="choice" role="radiogroup" aria-label="Virada entre a primeira e a segunda passada">
+                  <button type="button" role="radio" aria-checked="false" data-turn="right">Direita</button>
+                  <button type="button" role="radio" aria-checked="true" data-turn="left">Esquerda</button>
+                </div>
+              </div>
+
+              <label class="field">
+                <span>Espaçamento medido entre a 1ª e a 2ª passada</span>
+                <div class="input-shell">
+                  <input id="inputMeasured12" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Espaçamento medido entre a primeira e a segunda passada">
+                  <em>m</em>
+                </div>
+              </label>
+
+              <label class="field">
+                <span>Espaçamento medido entre a 2ª e a 3ª passada</span>
+                <div class="input-shell">
+                  <input id="inputMeasured23" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Espaçamento medido entre a segunda e a terceira passada">
+                  <em>m</em>
+                </div>
+              </label>
+            </div>
+
+            <p class="form-error" id="formError" role="alert"></p>
+
+            <div class="action-row">
+              <button class="secondary-button" type="button" id="resetButton">
+                <svg><use href="#icon-reset"></use></svg>
+                Zerar
+              </button>
+              <button class="secondary-button" type="button" id="copyButton">
+                <svg><use href="#icon-copy"></use></svg>
+                Copiar
+              </button>
+              <button class="primary-button" type="button" id="saveButton">
+                <svg><use href="#icon-save"></use></svg>
+                Salvar
+              </button>
+            </div>
+          </section>
+
+          <aside class="card result-card" aria-labelledby="resultsTitle">
+            <div class="card-heading">
+              <p>Preencher no terminal</p>
+              <h2 id="resultsTitle">Valores corrigidos</h2>
+            </div>
+
+            <div class="terminal-values">
+              <div class="terminal-value main">
+                <span>Deslocamento lateral corrigido</span>
+                <strong id="resultCorrectedOffset">0,000 m</strong>
+              </div>
+              <div class="terminal-value">
+                <span>Largura do implemento corrigido</span>
+                <strong id="resultCorrectedWidth">0,000 m</strong>
+              </div>
+            </div>
+
+            <div class="summary-list">
+              <div>
+                <span>Virada selecionada</span>
+                <strong id="resultTurn">Esquerda</strong>
+              </div>
+              <div>
+                <span>Variação da largura</span>
+                <strong id="resultWidthDelta">0,000 m</strong>
+              </div>
+              <div>
+                <span>Variação do deslocamento</span>
+                <strong id="resultOffsetDelta">0,000 m</strong>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="historyView">
+        <section class="card history-card" aria-labelledby="historyTitle">
+          <div class="card-heading">
+            <p>Memória local</p>
+            <h2 id="historyTitle">Histórico</h2>
+          </div>
+          <div class="history-actions">
+            <button class="secondary-button" type="button" id="clearHistoryButton">
+              <svg><use href="#icon-trash"></use></svg>
+              Limpar histórico
+            </button>
+          </div>
+          <div class="history-list" id="historyList"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js?v=agres-product8"></script>
+  </body>
+</html>
