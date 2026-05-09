@@ -1,6 +1,7 @@
 const defaults = {
   spacing: 0,
   rows: 0,
+  implementWidthOverride: null,
   initialOffset: 0,
   turn: "left",
   measured12: 0,
@@ -37,11 +38,14 @@ const outputs = {
   laneBLabel: document.querySelector("#laneBLabel"),
   laneCLabel: document.querySelector("#laneCLabel"),
   history: document.querySelector("#historyList"),
+  exportWord: document.querySelector("#exportWordButton"),
   status: document.querySelector("#connectionStatus")
 };
 
 let state = loadState();
 let latest = calculate(state);
+let selectedHistoryIds = new Set();
+const textEncoder = new TextEncoder();
 
 function parseDecimal(value) {
   if (typeof value !== "string") return Number(value);
@@ -65,6 +69,30 @@ function formatSignedMeters(value, digits = 3) {
   return formatMeters(value, digits);
 }
 
+function roundTo(value, digits) {
+  const factor = 10 ** digits;
+  return Math.round((Number(value) + Number.EPSILON) * factor) / factor;
+}
+
+function escapeXml(value) {
+  return String(value ?? "").replace(/[<>&"']/g, (char) => ({
+    "<": "&lt;",
+    ">": "&gt;",
+    "&": "&amp;",
+    "\"": "&quot;",
+    "'": "&apos;"
+  }[char]));
+}
+
+function safeFileName(value) {
+  return String(value || "historico")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase() || "historico";
+}
+
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKeys.state));
@@ -81,7 +109,7 @@ function persistState() {
 function syncInputs() {
   fields.spacing.value = formatInput(state.spacing);
   fields.rows.value = String(Math.round(state.rows || 0));
-  fields.initialOffset.value = formatInput(state.initialOffset);
+  fields.initialOffset.value = formatInput(state.initialOffset, 3);
   fields.measured12.value = formatInput(state.measured12);
   fields.measured23.value = formatInput(state.measured23);
 
@@ -96,11 +124,44 @@ function readInputs() {
   state = {
     spacing: parseDecimal(fields.spacing.value),
     rows: Math.round(parseDecimal(fields.rows.value)),
+    implementWidthOverride: null,
     initialOffset: parseDecimal(fields.initialOffset.value),
     turn: state.turn === "right" ? "right" : "left",
     measured12: parseDecimal(fields.measured12.value),
     measured23: parseDecimal(fields.measured23.value)
   };
+}
+
+function readInput(key) {
+  if (key === "spacing") {
+    state.spacing = parseDecimal(fields.spacing.value);
+    state.implementWidthOverride = null;
+  }
+
+  if (key === "rows") {
+    state.rows = Math.round(parseDecimal(fields.rows.value));
+    state.implementWidthOverride = null;
+  }
+
+  if (key === "initialOffset") {
+    state.initialOffset = parseDecimal(fields.initialOffset.value);
+  }
+
+  if (key === "measured12") {
+    state.measured12 = parseDecimal(fields.measured12.value);
+  }
+
+  if (key === "measured23") {
+    state.measured23 = parseDecimal(fields.measured23.value);
+  }
+}
+
+function normalizeField(key) {
+  if (key === "spacing") state.spacing = Math.max(0, state.spacing || 0);
+  if (key === "rows") state.rows = Math.max(0, Math.round(state.rows || 0));
+  if (key === "initialOffset") state.initialOffset = state.initialOffset || 0;
+  if (key === "measured12") state.measured12 = Math.max(0, state.measured12 || 0);
+  if (key === "measured23") state.measured23 = Math.max(0, state.measured23 || 0);
 }
 
 function validate(values) {
@@ -121,11 +182,14 @@ function validate(values) {
 
 function calculate(values) {
   const turnFactor = values.turn === "right" ? 1 : -1;
-  const implementWidth = values.rows * values.spacing;
+  const hasWidthOverride = Number.isFinite(values.implementWidthOverride);
+  const implementWidth = hasWidthOverride ? values.implementWidthOverride : values.rows * values.spacing;
 
-  const leftCorrection = (implementWidth / 2) - ((values.measured12 - values.spacing) / 2);
-  const rightCorrection = (implementWidth / 2) - ((values.measured23 - values.spacing) / 2);
-  const correctedWidth = leftCorrection + rightCorrection;
+  const measured12Delta = values.measured12 > 0 ? (values.measured12 - values.spacing) / 2 : 0;
+  const measured23Delta = values.measured23 > 0 ? (values.measured23 - values.spacing) / 2 : 0;
+  const leftCorrection = (implementWidth / 2) - measured12Delta;
+  const rightCorrection = (implementWidth / 2) - measured23Delta;
+  const correctedWidth = roundTo(leftCorrection + rightCorrection, 2);
   const correctedOffset = (((leftCorrection - rightCorrection) / 2) * turnFactor) + values.initialOffset;
 
   return {
@@ -145,20 +209,27 @@ function setLanePass(lane, passClass) {
 
 function render() {
   const error = validate(state);
+  const saveButton = document.querySelector("#saveButton");
+  const copyButton = document.querySelector("#copyButton");
+  const secondStageButton = document.querySelector("#secondStageButton");
   outputs.error.textContent = error;
 
   if (error) {
-    document.querySelector("#saveButton").disabled = true;
-    document.querySelector("#copyButton").disabled = true;
+    saveButton.disabled = true;
+    copyButton.disabled = true;
+    secondStageButton.disabled = true;
     return;
   }
 
-  document.querySelector("#saveButton").disabled = false;
-  document.querySelector("#copyButton").disabled = false;
+  saveButton.disabled = false;
+  copyButton.disabled = false;
   latest = calculate(state);
+  secondStageButton.disabled = state.rows <= 0
+    || !Number.isFinite(latest.correctedWidth)
+    || !Number.isFinite(latest.correctedOffset);
 
   outputs.implementWidth.textContent = formatMeters(latest.implementWidth, 2);
-  outputs.correctedWidth.textContent = formatMeters(latest.correctedWidth);
+  outputs.correctedWidth.textContent = formatMeters(latest.correctedWidth, 2);
   outputs.correctedOffset.textContent = formatSignedMeters(latest.correctedOffset);
   const turnRight = state.turn === "right";
   const measured12Text = `1ª-2ª: ${formatMeters(state.measured12, 2)}`;
@@ -191,9 +262,17 @@ function loadHistory() {
 }
 
 function saveHistory() {
+  const now = new Date();
+  const date = now.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  const suggestedName = `Ajuste ${date.replace(",", "")}`;
+  const typedName = window.prompt("Nome do Registro", suggestedName);
+
+  if (typedName === null) return;
+
   const item = {
     id: Date.now(),
-    date: new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }),
+    name: typedName.trim() || suggestedName,
+    date,
     values: { ...state },
     result: { ...latest }
   };
@@ -204,24 +283,37 @@ function saveHistory() {
 
 function renderHistory() {
   const history = loadHistory();
+  const validIds = new Set(history.map((item) => String(item.id)));
+  selectedHistoryIds = new Set([...selectedHistoryIds].filter((id) => validIds.has(id)));
+  outputs.exportWord.disabled = !history.length;
 
   if (!history.length) {
     outputs.history.innerHTML = '<div class="history-empty">Nenhum Cálculo Salvo</div>';
     return;
   }
 
-  outputs.history.innerHTML = history.map((item) => `
-    <button class="history-item" type="button" data-history-id="${item.id}">
-      <span>
-        <strong>${item.date}</strong>
-        <span>${item.values.rows || 0} Linhas | Virada ${item.values.turn === "right" ? "Direita" : "Esquerda"} | 1ª-2ª ${formatMeters(item.values.measured12, 2)}</span>
+  outputs.history.innerHTML = history.map((item) => {
+    const itemId = String(item.id);
+    const selected = selectedHistoryIds.has(itemId);
+
+    return `
+    <div class="history-item ${selected ? "selected" : ""}" data-history-id="${itemId}">
+      <label class="history-select">
+        <input type="checkbox" data-export-id="${itemId}" ${selected ? "checked" : ""}>
+        <span>Selecionar</span>
+      </label>
+      <button class="history-open" type="button" data-restore-id="${itemId}">
+        <span>
+        <strong>${item.name || item.date}</strong>
+        <span>${item.date} | ${item.values.rows || 0} Linhas | Virada ${item.values.turn === "right" ? "Direita" : "Esquerda"} | 1ª-2ª ${formatMeters(item.values.measured12, 2)}</span>
       </span>
       <span>
-        <strong>${formatMeters(item.result.correctedWidth)}</strong>
+        <strong>${formatMeters(item.result.correctedWidth, 2)}</strong>
         <span>${formatSignedMeters(item.result.correctedOffset)}</span>
       </span>
-    </button>
-  `).join("");
+      </button>
+    </div>`;
+  }).join("");
 }
 
 function restoreHistory(id) {
@@ -233,19 +325,470 @@ function restoreHistory(id) {
   showView("calculator");
 }
 
+function startNewCalculation() {
+  const confirmed = window.confirm("Iniciar a Primeira Passada? Todos os dados preenchidos serão perdidos.");
+  if (!confirmed) return;
+
+  state = { ...defaults };
+  syncInputs();
+  render();
+  showView("calculator");
+}
+
+function startSecondStage() {
+  const error = validate(state);
+  if (error) {
+    render();
+    return;
+  }
+
+  latest = calculate(state);
+  const rows = Math.max(0, Math.round(state.rows || 0));
+  const correctedWidth = roundTo(latest.correctedWidth, 2);
+  const spacing = rows > 0 ? correctedWidth / rows : 0;
+
+  state = {
+    ...state,
+    spacing: Math.max(0, spacing || 0),
+    rows,
+    implementWidthOverride: Math.max(0, correctedWidth || 0),
+    initialOffset: latest.correctedOffset || 0,
+    measured12: 0,
+    measured23: 0
+  };
+
+  syncInputs();
+  render();
+  showView("calculator");
+}
+
 function resultText() {
   return [
     "Ajuste de Espaçamento Entre Passadas",
     `Espaçamento Entre Linhas da Plantadeira: ${formatMeters(state.spacing, 2)}`,
     `Quantidade de Linhas: ${state.rows}`,
     `Largura do Implemento Calculada: ${formatMeters(latest.implementWidth, 2)}`,
-    `Deslocamento Lateral do Implemento: ${formatSignedMeters(state.initialOffset, 2)}`,
+    `Deslocamento Lateral do Implemento: ${formatSignedMeters(state.initialOffset)}`,
     `Virada Entre a 1ª e a 2ª Passada: ${state.turn === "right" ? "Direita" : "Esquerda"}`,
     `Espaçamento Medido Entre a 1ª e a 2ª Passada: ${formatMeters(state.measured12, 2)}`,
     `Espaçamento Medido Entre a 2ª e a 3ª Passada: ${formatMeters(state.measured23, 2)}`,
-    `Largura do Implemento Corrigido: ${formatMeters(latest.correctedWidth)}`,
+    `Largura do Implemento Corrigido: ${formatMeters(latest.correctedWidth, 2)}`,
     `Deslocamento Lateral Corrigido: ${formatSignedMeters(latest.correctedOffset)}`
   ].join("\n");
+}
+
+function wordParagraph(text, options = {}) {
+  const size = options.size || 22;
+  const bold = options.bold ? "<w:b/>" : "";
+  const spacing = options.after ? `<w:spacing w:after="${options.after}"/>` : "";
+  return `<w:p><w:pPr>${spacing}</w:pPr><w:r><w:rPr>${bold}<w:sz w:val="${size}"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+}
+
+function wordTableRow(label, value) {
+  return `
+    <w:tr>
+      <w:tc><w:tcPr><w:tcW w:w="4300" w:type="dxa"/></w:tcPr><w:p><w:r><w:rPr><w:b/></w:rPr><w:t>${escapeXml(label)}</w:t></w:r></w:p></w:tc>
+      <w:tc><w:tcPr><w:tcW w:w="4300" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>${escapeXml(value)}</w:t></w:r></w:p></w:tc>
+    </w:tr>`;
+}
+
+function wordTable(rows) {
+  return `
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="8600" w:type="dxa"/>
+        <w:tblBorders>
+          <w:top w:val="single" w:sz="6" w:space="0" w:color="BEBEBE"/>
+          <w:left w:val="single" w:sz="6" w:space="0" w:color="BEBEBE"/>
+          <w:bottom w:val="single" w:sz="6" w:space="0" w:color="BEBEBE"/>
+          <w:right w:val="single" w:sz="6" w:space="0" w:color="BEBEBE"/>
+          <w:insideH w:val="single" w:sz="6" w:space="0" w:color="D9D9D9"/>
+          <w:insideV w:val="single" w:sz="6" w:space="0" w:color="D9D9D9"/>
+        </w:tblBorders>
+      </w:tblPr>
+      ${rows.map(([label, value]) => wordTableRow(label, value)).join("")}
+    </w:tbl>`;
+}
+
+function historyRows(item) {
+  const values = { ...defaults, ...(item.values || {}) };
+  const calculated = calculate(values);
+  const result = { ...calculated, ...(item.result || {}) };
+
+  return [
+    ["Nome do Registro", item.name || item.date || "Registro"],
+    ["Data", item.date || ""],
+    ["Espaçamento Entre Linhas da Plantadeira", formatMeters(values.spacing, 2)],
+    ["Quantidade de Linhas", String(values.rows || 0)],
+    ["Largura do Implemento Calculada", formatMeters(result.implementWidth, 2)],
+    ["Deslocamento Lateral do Implemento", formatSignedMeters(values.initialOffset)],
+    ["Virada Entre a 1ª e a 2ª Passada", values.turn === "right" ? "Direita" : "Esquerda"],
+    ["Espaçamento Medido Entre a 1ª e a 2ª Passada", formatMeters(values.measured12, 2)],
+    ["Espaçamento Medido Entre a 2ª e a 3ª Passada", formatMeters(values.measured23, 2)],
+    ["Largura do Implemento Corrigido", formatMeters(result.correctedWidth, 2)],
+    ["Deslocamento Lateral Corrigido", formatSignedMeters(result.correctedOffset)]
+  ];
+}
+
+function buildWordDocumentXml(history) {
+  const generatedAt = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  const records = history.map((item, index) => (
+    wordParagraph(`${index + 1}. ${item.name || item.date || "Registro"}`, { bold: true, size: 26, after: 120 })
+    + wordTable(historyRows(item))
+    + wordParagraph("", { after: 220 })
+  )).join("");
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    ${wordParagraph("Histórico de Ajuste Entre Passadas", { bold: true, size: 34, after: 180 })}
+    ${wordParagraph(`Gerado em ${generatedAt}`, { size: 20, after: 260 })}
+    ${records}
+    <w:sectPr>
+      <w:pgSz w:w="11906" w:h="16838"/>
+      <w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+}
+
+function reportRecordTitle(item, index) {
+  if (index === 0) return "1ª Passada - Valores Originais";
+  if (index === 1) return "2ª Passada - Ajuste Final";
+  return `${index + 1}ª Passada - ${item.name || "Registro"}`;
+}
+
+function historySnapshot(item) {
+  const values = { ...defaults, ...(item.values || {}) };
+  const calculated = calculate(values);
+  const result = { ...calculated, ...(item.result || {}) };
+  return { values, result };
+}
+
+function wordRun(text, options = {}) {
+  const bold = options.bold ? "<w:b/>" : "";
+  const color = options.color ? `<w:color w:val="${options.color}"/>` : "";
+  const size = options.size || 22;
+  return `<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${bold}${color}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`;
+}
+
+function wordParagraph(text, options = {}) {
+  const align = options.align ? `<w:jc w:val="${options.align}"/>` : "";
+  const before = options.before ? ` w:before="${options.before}"` : "";
+  const after = options.after !== undefined ? ` w:after="${options.after}"` : ' w:after="80"';
+  const spacing = `<w:spacing${before}${after}/>`;
+  return `<w:p><w:pPr>${spacing}${align}</w:pPr>${wordRun(text, options)}</w:p>`;
+}
+
+function wordLogoDrawing(hasLogo) {
+  if (!hasLogo) {
+    return wordParagraph("AGRES", { bold: true, size: 36, color: "6B6B6B", after: 0, align: "center" });
+  }
+
+  return `<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr><w:r><w:drawing>
+    <wp:inline distT="0" distB="0" distL="0" distR="0">
+      <wp:extent cx="1480000" cy="420000"/>
+      <wp:docPr id="1" name="Logo Agres"/>
+      <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>
+      <a:graphic>
+        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <pic:pic>
+            <pic:nvPicPr><pic:cNvPr id="0" name="agres-report-logo.jpg"/><pic:cNvPicPr/></pic:nvPicPr>
+            <pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+            <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1480000" cy="420000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+          </pic:pic>
+        </a:graphicData>
+      </a:graphic>
+    </wp:inline>
+  </w:drawing></w:r></w:p>`;
+}
+
+function wordBorders(color = "B7B7B7", size = 6) {
+  return `<w:tcBorders><w:top w:val="single" w:sz="${size}" w:space="0" w:color="${color}"/><w:left w:val="single" w:sz="${size}" w:space="0" w:color="${color}"/><w:bottom w:val="single" w:sz="${size}" w:space="0" w:color="${color}"/><w:right w:val="single" w:sz="${size}" w:space="0" w:color="${color}"/></w:tcBorders>`;
+}
+
+function wordCell(content, options = {}) {
+  const width = options.width ? `<w:tcW w:w="${options.width}" w:type="dxa"/>` : "";
+  const shading = options.shading ? `<w:shd w:fill="${options.shading}"/>` : "";
+  const gridSpan = options.gridSpan ? `<w:gridSpan w:val="${options.gridSpan}"/>` : "";
+  const vertical = options.vertical ? `<w:vAlign w:val="${options.vertical}"/>` : "";
+  const borders = options.noBorders ? "" : wordBorders(options.borderColor || "B7B7B7", options.borderSize || 6);
+  return `<w:tc><w:tcPr>${width}${gridSpan}${shading}${vertical}${borders}</w:tcPr>${content}</w:tc>`;
+}
+
+function wordHeaderTable(generatedAt, recordCount, hasLogo) {
+  return `<w:tbl>
+    <w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="8" w:space="0" w:color="777777"/><w:left w:val="single" w:sz="8" w:space="0" w:color="777777"/><w:bottom w:val="single" w:sz="8" w:space="0" w:color="777777"/><w:right w:val="single" w:sz="8" w:space="0" w:color="777777"/><w:insideH w:val="single" w:sz="6" w:space="0" w:color="B7B7B7"/><w:insideV w:val="single" w:sz="6" w:space="0" w:color="B7B7B7"/></w:tblBorders></w:tblPr>
+    <w:tr>
+      ${wordCell(wordLogoDrawing(hasLogo), { width: 2600, vertical: "center", shading: "F2F2F2" })}
+      ${wordCell(
+        wordParagraph("RELATÓRIO TÉCNICO", { bold: true, size: 24, color: "5F6368", after: 80, align: "center" })
+        + wordParagraph("Configuração de Espaçamento Entre-Passadas da Plantadeira", { bold: true, size: 28, color: "2F3033", after: 60, align: "center" })
+        + wordParagraph("Comparativo da 1ª Passada e do Ajuste Final", { size: 20, color: "5F6368", after: 0, align: "center" }),
+        { width: 6760, vertical: "center" }
+      )}
+    </w:tr>
+    <w:tr>
+      ${wordCell(wordParagraph("Data de Exportação", { bold: true, size: 18, color: "5F6368", after: 0 }), { width: 2600, shading: "EDEDED" })}
+      ${wordCell(wordParagraph(generatedAt, { size: 18, after: 0 }), { width: 6760 })}
+    </w:tr>
+    <w:tr>
+      ${wordCell(wordParagraph("Registros Selecionados", { bold: true, size: 18, color: "5F6368", after: 0 }), { width: 2600, shading: "EDEDED" })}
+      ${wordCell(wordParagraph(String(recordCount), { size: 18, after: 0 }), { width: 6760 })}
+    </w:tr>
+  </w:tbl>`;
+}
+
+function wordTableRow(label, value) {
+  return `<w:tr>
+    ${wordCell(wordParagraph(label, { bold: true, size: 20, color: "666666", after: 0 }), { width: 4300, shading: "F0F0F0" })}
+    ${wordCell(wordParagraph(value, { size: 20, color: "2F3033", after: 0 }), { width: 5060 })}
+  </w:tr>`;
+}
+
+function wordTable(rows) {
+  return `<w:tbl>
+    <w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="6" w:space="0" w:color="B7B7B7"/><w:left w:val="single" w:sz="6" w:space="0" w:color="B7B7B7"/><w:bottom w:val="single" w:sz="6" w:space="0" w:color="B7B7B7"/><w:right w:val="single" w:sz="6" w:space="0" w:color="B7B7B7"/><w:insideH w:val="single" w:sz="6" w:space="0" w:color="D7D7D7"/><w:insideV w:val="single" w:sz="6" w:space="0" w:color="D7D7D7"/></w:tblBorders></w:tblPr>
+    ${rows.map(([label, value]) => wordTableRow(label, value)).join("")}
+  </w:tbl>`;
+}
+
+function comparisonRows(history) {
+  if (history.length < 2) return [];
+
+  const first = historySnapshot(history[0]);
+  const second = historySnapshot(history[1]);
+
+  return [
+    ["1ª Passada - Largura Original", formatMeters(first.result.implementWidth, 2)],
+    ["1ª Passada - Deslocamento Original", formatSignedMeters(first.values.initialOffset)],
+    ["Ajuste Encontrado na 1ª Passada", `${formatMeters(first.result.correctedWidth, 2)} / ${formatSignedMeters(first.result.correctedOffset)}`],
+    ["2ª Passada - Largura Aplicada", formatMeters(second.result.implementWidth, 2)],
+    ["2ª Passada - Deslocamento Aplicado", formatSignedMeters(second.values.initialOffset)],
+    ["Resultado Final da 2ª Passada", `${formatMeters(second.result.correctedWidth, 2)} / ${formatSignedMeters(second.result.correctedOffset)}`]
+  ];
+}
+
+function buildWordDocumentXml(history, hasLogo = false) {
+  const generatedAt = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  const summaryRows = comparisonRows(history);
+  const summary = summaryRows.length
+    ? wordParagraph("Resumo Comparativo", { bold: true, size: 26, color: "2F3033", before: 260, after: 100 })
+      + wordTable(summaryRows)
+    : "";
+  const records = history.map((item, index) => (
+    wordParagraph(reportRecordTitle(item, index), { bold: true, size: 26, color: "2F3033", before: 260, after: 100 })
+    + wordTable(historyRows(item))
+  )).join("");
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    ${wordHeaderTable(generatedAt, history.length, hasLogo)}
+    ${summary}
+    ${records}
+    <w:sectPr>
+      <w:pgSz w:w="11906" w:h="16838"/>
+      <w:pgMar w:top="850" w:right="850" w:bottom="850" w:left="850" w:header="708" w:footer="708" w:gutter="0"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+}
+
+function zipDateTime(date) {
+  return {
+    time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
+    date: ((date.getFullYear() - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate()
+  };
+}
+
+const crcTable = (() => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < 256; index += 1) {
+    let crc = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc & 1) ? (0xedb88320 ^ (crc >>> 1)) : (crc >>> 1);
+    }
+    table[index] = crc >>> 0;
+  }
+  return table;
+})();
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = (crc >>> 8) ^ crcTable[(crc ^ byte) & 0xff];
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function write16(bytes, offset, value) {
+  bytes[offset] = value & 0xff;
+  bytes[offset + 1] = (value >>> 8) & 0xff;
+}
+
+function write32(bytes, offset, value) {
+  bytes[offset] = value & 0xff;
+  bytes[offset + 1] = (value >>> 8) & 0xff;
+  bytes[offset + 2] = (value >>> 16) & 0xff;
+  bytes[offset + 3] = (value >>> 24) & 0xff;
+}
+
+function createZip(files) {
+  const now = zipDateTime(new Date());
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  files.forEach((file) => {
+    const nameBytes = textEncoder.encode(file.name);
+    const data = file.content instanceof Uint8Array
+      ? file.content
+      : file.content instanceof ArrayBuffer
+        ? new Uint8Array(file.content)
+        : textEncoder.encode(file.content);
+    const crc = crc32(data);
+
+    const local = new Uint8Array(30 + nameBytes.length);
+    write32(local, 0, 0x04034b50);
+    write16(local, 4, 20);
+    write16(local, 6, 0);
+    write16(local, 8, 0);
+    write16(local, 10, now.time);
+    write16(local, 12, now.date);
+    write32(local, 14, crc);
+    write32(local, 18, data.length);
+    write32(local, 22, data.length);
+    write16(local, 26, nameBytes.length);
+    write16(local, 28, 0);
+    local.set(nameBytes, 30);
+    localParts.push(local, data);
+
+    const central = new Uint8Array(46 + nameBytes.length);
+    write32(central, 0, 0x02014b50);
+    write16(central, 4, 20);
+    write16(central, 6, 20);
+    write16(central, 8, 0);
+    write16(central, 10, 0);
+    write16(central, 12, now.time);
+    write16(central, 14, now.date);
+    write32(central, 16, crc);
+    write32(central, 20, data.length);
+    write32(central, 24, data.length);
+    write16(central, 28, nameBytes.length);
+    write16(central, 30, 0);
+    write16(central, 32, 0);
+    write16(central, 34, 0);
+    write16(central, 36, 0);
+    write32(central, 38, 0);
+    write32(central, 42, offset);
+    central.set(nameBytes, 46);
+    centralParts.push(central);
+
+    offset += local.length + data.length;
+  });
+
+  const centralStart = offset;
+  const centralSize = centralParts.reduce((total, part) => total + part.length, 0);
+  const end = new Uint8Array(22);
+  write32(end, 0, 0x06054b50);
+  write16(end, 4, 0);
+  write16(end, 6, 0);
+  write16(end, 8, files.length);
+  write16(end, 10, files.length);
+  write32(end, 12, centralSize);
+  write32(end, 16, centralStart);
+  write16(end, 20, 0);
+
+  return new Blob([...localParts, ...centralParts, end], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  });
+}
+
+function createHistoryDocx(history, logoBytes = null) {
+  const hasLogo = logoBytes instanceof Uint8Array && logoBytes.length > 0;
+  const files = [
+    {
+      name: "[Content_Types].xml",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="jpg" ContentType="image/jpeg"/>
+  <Default Extension="jpeg" ContentType="image/jpeg"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`
+    },
+    {
+      name: "_rels/.rels",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`
+    },
+    {
+      name: "word/_rels/document.xml.rels",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  ${hasLogo ? '<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/agres-report-logo.jpg"/>' : ""}
+</Relationships>`
+    },
+    {
+      name: "word/document.xml",
+      content: buildWordDocumentXml(history, hasLogo)
+    }
+  ];
+
+  if (hasLogo) {
+    files.push({
+      name: "word/media/agres-report-logo.jpg",
+      content: logoBytes
+    });
+  }
+
+  return createZip(files);
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function loadReportLogo() {
+  try {
+    const response = await fetch("./assets/agres-report-logo.jpg");
+    if (!response.ok) return null;
+    return new Uint8Array(await response.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+async function exportHistoryWord() {
+  const history = loadHistory();
+  if (!history.length) return;
+  const selectedHistory = history
+    .filter((item) => selectedHistoryIds.has(String(item.id)))
+    .sort((first, second) => Number(first.id) - Number(second.id));
+
+  if (!selectedHistory.length) {
+    window.alert("Selecione pelo menos um registro do histórico para exportar em Word.");
+    return;
+  }
+
+  const date = new Date().toISOString().slice(0, 10);
+  const baseName = selectedHistory.length === 1
+    ? selectedHistory[0].name || `historico-ajuste-entre-passadas-${date}`
+    : `relatorio-ajuste-entre-passadas-${date}`;
+  const logoBytes = await loadReportLogo();
+  const blob = createHistoryDocx(selectedHistory, logoBytes);
+  downloadBlob(blob, `${safeFileName(baseName)}.docx`);
 }
 
 async function copyResult() {
@@ -278,17 +821,19 @@ function updateConnectionStatus() {
   outputs.status.textContent = navigator.onLine ? "Online" : "Offline Pronto";
 }
 
-document.querySelectorAll("input").forEach((input) => {
+Object.entries(fields).forEach(([key, input]) => {
   input.setAttribute("enterkeyhint", "done");
 
   input.addEventListener("focus", () => {
+    input.dataset.dirty = "false";
     setTimeout(() => input.select(), 0);
   });
   input.addEventListener("click", () => {
     input.select();
   });
   input.addEventListener("input", () => {
-    readInputs();
+    input.dataset.dirty = "true";
+    readInput(key);
     render();
   });
   input.addEventListener("keydown", (event) => {
@@ -298,12 +843,8 @@ document.querySelectorAll("input").forEach((input) => {
     }
   });
   input.addEventListener("blur", () => {
-    readInputs();
-    state.spacing = Math.max(0, state.spacing || 0);
-    state.rows = Math.max(0, Math.round(state.rows || 0));
-    state.initialOffset = state.initialOffset || 0;
-    state.measured12 = Math.max(0, state.measured12 || 0);
-    state.measured23 = Math.max(0, state.measured23 || 0);
+    if (input.dataset.dirty === "true") readInput(key);
+    normalizeField(key);
     syncInputs();
     render();
   });
@@ -317,14 +858,12 @@ document.querySelectorAll("[data-turn]").forEach((button) => {
   });
 });
 
-document.querySelector("#resetButton").addEventListener("click", () => {
-  state = { ...defaults };
-  syncInputs();
-  render();
-});
+document.querySelector("#newButton").addEventListener("click", startNewCalculation);
+document.querySelector("#secondStageButton").addEventListener("click", startSecondStage);
 
 document.querySelector("#saveButton").addEventListener("click", saveHistory);
 document.querySelector("#copyButton").addEventListener("click", copyResult);
+document.querySelector("#exportWordButton").addEventListener("click", exportHistoryWord);
 
 document.querySelector("#clearHistoryButton").addEventListener("click", () => {
   localStorage.removeItem(storageKeys.history);
@@ -332,8 +871,21 @@ document.querySelector("#clearHistoryButton").addEventListener("click", () => {
 });
 
 outputs.history.addEventListener("click", (event) => {
-  const item = event.target.closest("[data-history-id]");
-  if (item) restoreHistory(item.dataset.historyId);
+  const item = event.target.closest("[data-restore-id]");
+  if (item) restoreHistory(item.dataset.restoreId);
+});
+
+outputs.history.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-export-id]");
+  if (!checkbox) return;
+
+  if (checkbox.checked) {
+    selectedHistoryIds.add(String(checkbox.dataset.exportId));
+  } else {
+    selectedHistoryIds.delete(String(checkbox.dataset.exportId));
+  }
+
+  renderHistory();
 });
 
 document.querySelectorAll(".tab").forEach((button) => {

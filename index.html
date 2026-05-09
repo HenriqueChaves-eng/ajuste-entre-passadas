@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="assets/logo_agres.png">
     <link rel="icon" href="assets/logo_agres.png">
-    <link rel="stylesheet" href="styles.css?v=agres-product23">
+    <link rel="stylesheet" href="styles.css?v=agres-product33">
   </head>
   <body>
     <svg aria-hidden="true" class="sprite">
@@ -35,6 +35,11 @@
         <path d="M10 11v5"></path>
         <path d="M14 11v5"></path>
       </symbol>
+      <symbol id="icon-download" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <path d="M7 10l5 5 5-5"></path>
+        <path d="M12 15V3"></path>
+      </symbol>
     </svg>
 
     <main class="app-shell">
@@ -55,6 +60,16 @@
       </nav>
 
       <section class="view active" id="calculatorView">
+        <div class="workflow-actions" aria-label="Fluxo do cálculo">
+          <button class="secondary-button" type="button" id="newButton">
+            <svg><use href="#icon-reset"></use></svg>
+            Primeira Passada
+          </button>
+          <button class="primary-button next-stage-button" type="button" id="secondStageButton">
+            Segunda Passada
+          </button>
+        </div>
+
         <div class="calculator-layout">
           <section class="card form-card" aria-labelledby="inputsTitle">
             <div class="card-heading">
@@ -189,17 +204,13 @@
             <p class="form-error" id="formError" role="alert"></p>
 
             <div class="action-row">
-              <button class="secondary-button" type="button" id="resetButton">
-                <svg><use href="#icon-reset"></use></svg>
-                Zerar
+              <button class="primary-button" type="button" id="saveButton">
+                <svg><use href="#icon-save"></use></svg>
+                Salvar
               </button>
               <button class="secondary-button" type="button" id="copyButton">
                 <svg><use href="#icon-copy"></use></svg>
                 Copiar
-              </button>
-              <button class="primary-button" type="button" id="saveButton">
-                <svg><use href="#icon-save"></use></svg>
-                Salvar
               </button>
             </div>
           </section>
@@ -232,6 +243,10 @@
             <h2 id="historyTitle">Histórico</h2>
           </div>
           <div class="history-actions">
+            <button class="secondary-button" type="button" id="exportWordButton">
+              <svg><use href="#icon-download"></use></svg>
+              Exportar Word
+            </button>
             <button class="secondary-button" type="button" id="clearHistoryButton">
               <svg><use href="#icon-trash"></use></svg>
               Limpar Histórico
@@ -242,6 +257,6 @@
       </section>
     </main>
 
-    <script src="app.js?v=agres-product23"></script>
+    <script src="app.js?v=agres-product33"></script>
   </body>
 </html>

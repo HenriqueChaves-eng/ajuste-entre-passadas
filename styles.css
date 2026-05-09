@@ -134,6 +134,22 @@ button:disabled {
   background: var(--surface);
 }
 
+.workflow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: -4px 0 14px;
+}
+
+.workflow-actions .secondary-button,
+.workflow-actions .primary-button {
+  min-width: 126px;
+}
+
+.next-stage-button {
+  padding-inline: 18px;
+}
+
 .tab {
   border: 0;
   border-radius: 6px;
@@ -566,23 +582,56 @@ button:disabled {
 
 .history-item {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 13px;
+  padding: 10px;
   background: var(--soft);
+}
+
+.history-item.selected {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(95, 96, 98, 0.12);
+}
+
+.history-select {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 18px auto;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.history-select input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand);
+}
+
+.history-open {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px;
+  background: transparent;
   text-align: left;
 }
 
-.history-item strong {
+.history-open strong {
   display: block;
   margin-bottom: 4px;
   color: var(--text);
   font-size: 0.98rem;
 }
 
-.history-item span {
+.history-open span {
   display: block;
   color: var(--muted);
   font-size: 0.88rem;
@@ -664,7 +713,17 @@ button:disabled {
   }
 
   .action-row .secondary-button,
-  .action-row .primary-button {
+  .action-row .primary-button,
+  .workflow-actions .secondary-button,
+  .workflow-actions .primary-button {
     flex: 1 1 104px;
+  }
+
+  .history-item {
+    grid-template-columns: 1fr;
+  }
+
+  .history-open {
+    grid-template-columns: 1fr;
   }
 }

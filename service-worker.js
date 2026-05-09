@@ -1,4 +1,4 @@
-const CACHE_NAME = "agres-espacamento-product-v23";
+const CACHE_NAME = "agres-espacamento-product-v33";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -6,6 +6,7 @@ const APP_ASSETS = [
   "./app.js",
   "./manifest.webmanifest",
   "./assets/agres-brand.jpeg",
+  "./assets/agres-report-logo.jpg",
   "./assets/logo_agres.png",
   "./assets/tractor-planter-top.png"
 ];
