@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="assets/logo_agres.png">
     <link rel="icon" href="assets/logo_agres.png">
-    <link rel="stylesheet" href="styles.css?v=agres-product33">
+    <link rel="stylesheet" href="styles.css?v=agres-product36">
   </head>
   <body>
     <svg aria-hidden="true" class="sprite">
@@ -62,7 +62,6 @@
       <section class="view active" id="calculatorView">
         <div class="workflow-actions" aria-label="Fluxo do cálculo">
           <button class="secondary-button" type="button" id="newButton">
-            <svg><use href="#icon-reset"></use></svg>
             Primeira Passada
           </button>
           <button class="primary-button next-stage-button" type="button" id="secondStageButton">
@@ -227,7 +226,7 @@
                 <strong id="resultCorrectedOffset">0,000 m</strong>
               </div>
               <div class="terminal-value">
-                <span>Largura do Implemento Corrigido</span>
+                <span>2ª Passada - Largura Final Corrigida</span>
                 <strong id="resultCorrectedWidth">0,000 m</strong>
               </div>
             </div>
@@ -256,7 +255,8 @@
         </section>
       </section>
     </main>
+    <div class="toast" id="toastMessage" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=agres-product33"></script>
+    <script src="app.js?v=agres-product36"></script>
   </body>
 </html>

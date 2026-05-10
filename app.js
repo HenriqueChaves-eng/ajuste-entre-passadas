@@ -2,6 +2,9 @@ const defaults = {
   spacing: 0,
   rows: 0,
   implementWidthOverride: null,
+  firstPassRows: null,
+  firstPassSpacing: null,
+  firstPassWidth: null,
   initialOffset: 0,
   turn: "left",
   measured12: 0,
@@ -39,12 +42,14 @@ const outputs = {
   laneCLabel: document.querySelector("#laneCLabel"),
   history: document.querySelector("#historyList"),
   exportWord: document.querySelector("#exportWordButton"),
+  toast: document.querySelector("#toastMessage"),
   status: document.querySelector("#connectionStatus")
 };
 
 let state = loadState();
 let latest = calculate(state);
 let selectedHistoryIds = new Set();
+let toastTimer = 0;
 const textEncoder = new TextEncoder();
 
 function parseDecimal(value) {
@@ -93,6 +98,34 @@ function safeFileName(value) {
     .toLowerCase() || "historico";
 }
 
+function hasNumber(value) {
+  return value !== null && value !== "" && Number.isFinite(Number(value));
+}
+
+function firstPassInfo(values, calculated = null) {
+  const rows = hasNumber(values.firstPassRows) ? Number(values.firstPassRows) : Number(values.rows || 0);
+  const spacing = hasNumber(values.firstPassSpacing) ? Number(values.firstPassSpacing) : Number(values.spacing || 0);
+  const width = hasNumber(values.firstPassWidth)
+    ? Number(values.firstPassWidth)
+    : rows * spacing;
+
+  return {
+    rows,
+    spacing,
+    width: hasNumber(width) ? width : Number(calculated?.implementWidth || 0)
+  };
+}
+
+function showToast(message) {
+  if (!outputs.toast) return;
+  outputs.toast.textContent = message;
+  outputs.toast.classList.add("show");
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    outputs.toast.classList.remove("show");
+  }, 2200);
+}
+
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKeys.state));
@@ -125,6 +158,9 @@ function readInputs() {
     spacing: parseDecimal(fields.spacing.value),
     rows: Math.round(parseDecimal(fields.rows.value)),
     implementWidthOverride: null,
+    firstPassRows: null,
+    firstPassSpacing: null,
+    firstPassWidth: null,
     initialOffset: parseDecimal(fields.initialOffset.value),
     turn: state.turn === "right" ? "right" : "left",
     measured12: parseDecimal(fields.measured12.value),
@@ -136,11 +172,17 @@ function readInput(key) {
   if (key === "spacing") {
     state.spacing = parseDecimal(fields.spacing.value);
     state.implementWidthOverride = null;
+    state.firstPassRows = null;
+    state.firstPassSpacing = null;
+    state.firstPassWidth = null;
   }
 
   if (key === "rows") {
     state.rows = Math.round(parseDecimal(fields.rows.value));
     state.implementWidthOverride = null;
+    state.firstPassRows = null;
+    state.firstPassSpacing = null;
+    state.firstPassWidth = null;
   }
 
   if (key === "initialOffset") {
@@ -346,12 +388,16 @@ function startSecondStage() {
   const rows = Math.max(0, Math.round(state.rows || 0));
   const correctedWidth = roundTo(latest.correctedWidth, 2);
   const spacing = rows > 0 ? correctedWidth / rows : 0;
+  const firstPass = firstPassInfo(state, latest);
 
   state = {
     ...state,
     spacing: Math.max(0, spacing || 0),
     rows,
     implementWidthOverride: Math.max(0, correctedWidth || 0),
+    firstPassRows: firstPass.rows,
+    firstPassSpacing: firstPass.spacing,
+    firstPassWidth: roundTo(firstPass.width, 2),
     initialOffset: latest.correctedOffset || 0,
     measured12: 0,
     measured23: 0
@@ -372,7 +418,7 @@ function resultText() {
     `Virada Entre a 1ª e a 2ª Passada: ${state.turn === "right" ? "Direita" : "Esquerda"}`,
     `Espaçamento Medido Entre a 1ª e a 2ª Passada: ${formatMeters(state.measured12, 2)}`,
     `Espaçamento Medido Entre a 2ª e a 3ª Passada: ${formatMeters(state.measured23, 2)}`,
-    `Largura do Implemento Corrigido: ${formatMeters(latest.correctedWidth, 2)}`,
+    `2Âª Passada - Largura Final Corrigida: ${formatMeters(latest.correctedWidth, 2)}`,
     `Deslocamento Lateral Corrigido: ${formatSignedMeters(latest.correctedOffset)}`
   ].join("\n");
 }
@@ -595,6 +641,210 @@ function buildWordDocumentXml(history, hasLogo = false) {
 </w:document>`;
 }
 
+function reportCellText(text, options = {}) {
+  return wordCell(
+    wordParagraph(text, {
+      bold: options.bold,
+      size: options.size || 20,
+      color: options.color || "595959",
+      align: options.align,
+      after: 0
+    }),
+    {
+      width: options.width,
+      shading: options.shading,
+      gridSpan: options.gridSpan,
+      vertical: "center",
+      borderColor: options.borderColor || "BFBFBF"
+    }
+  );
+}
+
+function reportCompanyHeader(hasLogo) {
+  return `<w:tbl>
+    <w:tblPr><w:tblW w:w="9360" w:type="dxa"/></w:tblPr>
+    <w:tr>
+      ${wordCell(wordLogoDrawing(hasLogo), { width: 3600, noBorders: true, vertical: "center" })}
+      ${wordCell(
+        wordParagraph("Agres Sistemas Eletrônicos S.A", { bold: true, size: 20, color: "595959", align: "right", after: 0 })
+        + wordParagraph("Av. Com. Franco, 6720", { size: 18, color: "595959", align: "right", after: 0 })
+        + wordParagraph("Uberaba, Curitiba - PR", { size: 18, color: "595959", align: "right", after: 0 }),
+        { width: 5760, noBorders: true, vertical: "center" }
+      )}
+    </w:tr>
+  </w:tbl>`;
+}
+
+function reportTitleBlock(generatedAt) {
+  return [
+    wordParagraph("Configuração de Espaçamento Entre-Passadas da Plantadeira", {
+      bold: true,
+      size: 26,
+      color: "595959",
+      align: "center",
+      before: 220,
+      after: 0
+    }),
+    wordParagraph("Relatório Técnico de Ajuste", {
+      bold: true,
+      size: 22,
+      color: "595959",
+      align: "center",
+      after: 180
+    }),
+    reportPairTable("IDENTIFICAÇÃO DO RELATÓRIO", [
+      ["Documento", "Ajuste de Espaçamento Entre-Passadas"],
+      ["Data de Exportação", generatedAt],
+      ["Padrão", "Agres Sistemas Eletrônicos S.A"]
+    ])
+  ].join("");
+}
+
+function reportPairTable(title, rows) {
+  return `<w:tbl>
+    <w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/><w:left w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/><w:bottom w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/><w:right w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/><w:insideH w:val="single" w:sz="6" w:space="0" w:color="D9D9D9"/><w:insideV w:val="single" w:sz="6" w:space="0" w:color="D9D9D9"/></w:tblBorders></w:tblPr>
+    <w:tr>${reportCellText(title, { bold: true, size: 20, align: "center", shading: "D9D9D9", gridSpan: 2, width: 9360 })}</w:tr>
+    ${rows.map(([label, value]) => `<w:tr>
+      ${reportCellText(label, { bold: true, width: 3600, shading: "F2F2F2" })}
+      ${reportCellText(value, { width: 5760 })}
+    </w:tr>`).join("")}
+  </w:tbl>`;
+}
+
+function reportSummaryTable(rows) {
+  return `<w:tbl>
+    <w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/><w:left w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/><w:bottom w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/><w:right w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/><w:insideH w:val="single" w:sz="6" w:space="0" w:color="D9D9D9"/><w:insideV w:val="single" w:sz="6" w:space="0" w:color="D9D9D9"/></w:tblBorders></w:tblPr>
+    <w:tr>${reportCellText("RESUMO DO AJUSTE", { bold: true, size: 20, align: "center", shading: "D9D9D9", gridSpan: 4, width: 9360 })}</w:tr>
+    <w:tr>
+      ${reportCellText("ETAPA", { bold: true, align: "center", shading: "D9D9D9", width: 2340 })}
+      ${reportCellText("LARGURA", { bold: true, align: "center", shading: "D9D9D9", width: 2340 })}
+      ${reportCellText("DESLOCAMENTO", { bold: true, align: "center", shading: "D9D9D9", width: 2340 })}
+      ${reportCellText("OBSERVAÇÃO", { bold: true, align: "center", shading: "D9D9D9", width: 2340 })}
+    </w:tr>
+    ${rows.map((row) => `<w:tr>${row.map((cell) => reportCellText(cell, { align: "center", width: 2340 })).join("")}</w:tr>`).join("")}
+  </w:tbl>`;
+}
+
+function firstPassFormulaText(info) {
+  return `${Math.round(info.rows || 0)} linhas x ${formatMeters(info.spacing, 2)} = ${formatMeters(info.width, 2)}`;
+}
+
+function historyRows(item) {
+  const values = { ...defaults, ...(item.values || {}) };
+  const calculated = calculate(values);
+  const result = { ...calculated, ...(item.result || {}) };
+  const firstPass = firstPassInfo(values, calculated);
+
+  return [
+    ["Nome do Registro", item.name || item.date || "Registro"],
+    ["Data", item.date || ""],
+    ["1ª Passada - Largura Original", firstPassFormulaText(firstPass)],
+    ["Espaçamento Entre Linhas da Plantadeira", formatMeters(values.spacing, 2)],
+    ["Quantidade de Linhas", String(values.rows || 0)],
+    ["Largura Aplicada Nesta Passada", formatMeters(result.implementWidth, 2)],
+    ["Deslocamento Lateral do Implemento", formatSignedMeters(values.initialOffset)],
+    ["Virada Entre a 1ª e a 2ª Passada", values.turn === "right" ? "Direita" : "Esquerda"],
+    ["Espaçamento Medido Entre a 1ª e a 2ª Passada", formatMeters(values.measured12, 2)],
+    ["Espaçamento Medido Entre a 2ª e a 3ª Passada", formatMeters(values.measured23, 2)],
+    ["2ª Passada - Largura Final Corrigida", formatMeters(result.correctedWidth, 2)],
+    ["Deslocamento Lateral Corrigido", formatSignedMeters(result.correctedOffset)]
+  ];
+}
+
+function comparisonRows(history) {
+  if (history.length < 2) return [];
+
+  const first = historySnapshot(history[0]);
+  const second = historySnapshot(history[1]);
+  const firstPass = firstPassInfo(first.values, first.result);
+
+  return [
+    ["1ª Passada", formatMeters(firstPass.width, 2), formatSignedMeters(first.values.initialOffset), firstPassFormulaText(firstPass)],
+    ["Correção Calculada", formatMeters(first.result.correctedWidth, 2), formatSignedMeters(first.result.correctedOffset), "Valores transferidos para a 2ª passada"],
+    ["2ª Passada", formatMeters(second.result.implementWidth, 2), formatSignedMeters(second.values.initialOffset), "Valores aplicados no terminal"],
+    ["Resultado Final", formatMeters(second.result.correctedWidth, 2), formatSignedMeters(second.result.correctedOffset), "Ajuste final corrigido"]
+  ];
+}
+
+function firstPassReportRows(item) {
+  const { values, result } = historySnapshot(item);
+  const original = firstPassInfo(values, result);
+
+  return [
+    ["Registro", item.name || item.date || "1ª Passada"],
+    ["Data", item.date || ""],
+    ["Espaçamento Entre Linhas", formatMeters(original.spacing, 2)],
+    ["Quantidade de Linhas", String(Math.round(original.rows || 0))],
+    ["Largura Original da Plantadeira", firstPassFormulaText(original)],
+    ["Deslocamento Lateral Original", formatSignedMeters(values.initialOffset)],
+    ["Virada Entre a 1ª e a 2ª Passada", values.turn === "right" ? "Direita" : "Esquerda"],
+    ["Medição Entre 1ª e 2ª Passada", formatMeters(values.measured12, 2)],
+    ["Medição Entre 2ª e 3ª Passada", formatMeters(values.measured23, 2)],
+    ["Largura Corrigida Calculada Para a 2ª Passada", formatMeters(result.correctedWidth, 2)],
+    ["Deslocamento Corrigido Calculado Para a 2ª Passada", formatSignedMeters(result.correctedOffset)]
+  ];
+}
+
+function secondPassReportRows(item) {
+  const { values, result } = historySnapshot(item);
+
+  return [
+    ["Registro", item.name || item.date || "2ª Passada"],
+    ["Data", item.date || ""],
+    ["Largura Aplicada no Terminal", formatMeters(result.implementWidth, 2)],
+    ["Deslocamento Aplicado no Terminal", formatSignedMeters(values.initialOffset)],
+    ["Espaçamento Entre Linhas Resultante", formatMeters(values.spacing, 2)],
+    ["Quantidade de Linhas", String(values.rows || 0)],
+    ["Virada Entre a 1ª e a 2ª Passada", values.turn === "right" ? "Direita" : "Esquerda"],
+    ["Medição Entre 1ª e 2ª Passada", formatMeters(values.measured12, 2)],
+    ["Medição Entre 2ª e 3ª Passada", formatMeters(values.measured23, 2)],
+    ["Largura Final Corrigida", formatMeters(result.correctedWidth, 2)],
+    ["Deslocamento Final Corrigido", formatSignedMeters(result.correctedOffset)]
+  ];
+}
+
+function finalResultRows(firstItem, secondItem) {
+  const first = historySnapshot(firstItem);
+  const second = historySnapshot(secondItem);
+  const original = firstPassInfo(first.values, first.result);
+
+  return [
+    ["Largura Original da 1ª Passada", firstPassFormulaText(original)],
+    ["Correção Calculada Após a 1ª Passada", `${formatMeters(first.result.correctedWidth, 2)} / ${formatSignedMeters(first.result.correctedOffset)}`],
+    ["Valores Aplicados na 2ª Passada", `${formatMeters(second.result.implementWidth, 2)} / ${formatSignedMeters(second.values.initialOffset)}`],
+    ["Resultado Final Corrigido", `${formatMeters(second.result.correctedWidth, 2)} / ${formatSignedMeters(second.result.correctedOffset)}`]
+  ];
+}
+
+function buildWordDocumentXml(history, hasLogo = false) {
+  const generatedAt = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  const hasTwoPasses = history.length >= 2;
+  const records = hasTwoPasses
+    ? [
+      reportPairTable("1ª PASSADA - VALORES ORIGINAIS E MEDIÇÕES", firstPassReportRows(history[0])),
+      reportPairTable("2ª PASSADA - AJUSTE FINAL APLICADO", secondPassReportRows(history[1])),
+      reportPairTable("RESULTADO FINAL DO AJUSTE", finalResultRows(history[0], history[1])),
+      ...history.slice(2).map((item, index) => reportPairTable(`${index + 3}ª PASSADA - REGISTRO COMPLEMENTAR`, historyRows(item)))
+    ].map((section) => wordParagraph("", { after: 180 }) + section).join("")
+    : history.map((item, index) => (
+      wordParagraph("", { after: 180 })
+      + reportPairTable(reportRecordTitle(item, index).toUpperCase(), historyRows(item))
+    )).join("");
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    ${reportCompanyHeader(hasLogo)}
+    ${reportTitleBlock(generatedAt)}
+    ${records}
+    <w:sectPr>
+      <w:pgSz w:w="11906" w:h="16838"/>
+      <w:pgMar w:top="850" w:right="850" w:bottom="850" w:left="850" w:header="708" w:footer="708" w:gutter="0"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+}
+
 function zipDateTime(date) {
   return {
     time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
@@ -807,6 +1057,8 @@ async function copyResult() {
     document.execCommand("copy");
     area.remove();
   }
+
+  showToast("Arquivo copiado com sucesso.");
 }
 
 function showView(name) {

@@ -518,6 +518,12 @@ button:disabled {
   font-weight: 830;
 }
 
+.terminal-value small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 720;
+}
+
 .form-error {
   min-height: 21px;
   margin: 10px 0 0;
@@ -568,6 +574,33 @@ button:disabled {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 30;
+  transform: translate(-50%, 18px);
+  min-width: 220px;
+  max-width: calc(100vw - 32px);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 11px 16px;
+  background: #2f3033;
+  color: #ffffff;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
+  font-size: 0.9rem;
+  font-weight: 760;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .history-card {
