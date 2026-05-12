@@ -494,19 +494,24 @@ button:disabled {
   display: grid;
   align-content: center;
   gap: 7px;
-  border: 1px solid var(--line);
+  border: 1px solid #8fbe8a;
   border-radius: 8px;
   padding: 16px;
-  background: var(--soft);
+  background: #eef8ee;
 }
 
 .terminal-value.main {
-  background: #f1f1f1;
-  border-color: #c9c9c9;
+  background: #eef8ee;
+  border-color: #8fbe8a;
 }
 
 .terminal-value span {
-  color: var(--muted);
+  width: max-content;
+  max-width: 100%;
+  border-radius: 5px;
+  padding: 3px 7px;
+  background: #cfe8c9;
+  color: #315a31;
   font-size: 0.86rem;
   font-weight: 760;
 }
