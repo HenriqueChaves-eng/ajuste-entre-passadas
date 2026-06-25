@@ -1,4 +1,7 @@
-const calculationVersion = "Agres Plantio | Ajuste Entre-Passadas v48";
+const calculationVersion = "Agres Plantio | Ajuste Entre-Passadas v54";
+const WIDTH_DIGITS = 2;
+const OFFSET_DIGITS = 3;
+const MEASUREMENT_DIGITS = 2;
 
 const defaults = {
   spacing: 0,
@@ -60,25 +63,30 @@ function parseDecimal(value) {
   return Number(normalized);
 }
 
-function formatInput(value, digits = 2) {
-  return Number(value).toFixed(digits).replace(".", ",");
+function formatInput(value, digits = MEASUREMENT_DIGITS) {
+  const rounded = roundLikeExcel(value, digits);
+  return (Object.is(rounded, -0) ? 0 : rounded).toFixed(digits).replace(".", ",");
 }
 
-function formatMeters(value, digits = 3) {
-  return `${Number(value).toLocaleString("pt-BR", {
+function formatMeters(value, digits = OFFSET_DIGITS) {
+  const rounded = roundLikeExcel(value, digits);
+  const normalized = Object.is(rounded, -0) ? 0 : rounded;
+  return `${normalized.toLocaleString("pt-BR", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits
   })} m`;
 }
 
-function formatSignedMeters(value, digits = 3) {
-  if (Object.is(value, -0)) return formatMeters(0, digits);
+function formatSignedMeters(value, digits = OFFSET_DIGITS) {
   return formatMeters(value, digits);
 }
 
-function roundTo(value, digits) {
-  const factor = 10 ** digits;
-  return Math.round((Number(value) + Number.EPSILON) * factor) / factor;
+function terminalWidth(value) {
+  return roundLikeExcel(value, WIDTH_DIGITS);
+}
+
+function formatTerminalWidth(value) {
+  return formatMeters(terminalWidth(value), WIDTH_DIGITS);
 }
 
 function roundLikeExcel(value, digits) {
@@ -98,6 +106,16 @@ function escapeXml(value) {
   }[char]));
 }
 
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[<>&"']/g, (char) => ({
+    "<": "&lt;",
+    ">": "&gt;",
+    "&": "&amp;",
+    "\"": "&quot;",
+    "'": "&#39;"
+  }[char]));
+}
+
 function safeFileName(value) {
   return String(value || "historico")
     .normalize("NFD")
@@ -114,9 +132,9 @@ function hasNumber(value) {
 function firstPassInfo(values, calculated = null) {
   const rows = hasNumber(values.firstPassRows) ? Number(values.firstPassRows) : Number(values.rows || 0);
   const spacing = hasNumber(values.firstPassSpacing) ? Number(values.firstPassSpacing) : Number(values.spacing || 0);
-  const width = hasNumber(values.firstPassWidth)
+  const width = terminalWidth(hasNumber(values.firstPassWidth)
     ? Number(values.firstPassWidth)
-    : rows * spacing;
+    : rows * spacing);
 
   return {
     rows,
@@ -138,7 +156,9 @@ function showToast(message) {
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKeys.state));
-    return { ...defaults, ...saved };
+    return saved && typeof saved === "object" && !Array.isArray(saved)
+      ? { ...defaults, ...saved }
+      : { ...defaults };
   } catch {
     return { ...defaults };
   }
@@ -160,21 +180,6 @@ function syncInputs() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-checked", String(active));
   });
-}
-
-function readInputs() {
-  state = {
-    spacing: parseDecimal(fields.spacing.value),
-    rows: Math.round(parseDecimal(fields.rows.value)),
-    implementWidthOverride: null,
-    firstPassRows: null,
-    firstPassSpacing: null,
-    firstPassWidth: null,
-    initialOffset: parseDecimal(fields.initialOffset.value),
-    turn: state.turn === "right" ? "right" : "left",
-    measured12: parseDecimal(fields.measured12.value),
-    measured23: parseDecimal(fields.measured23.value)
-  };
 }
 
 function readInput(key) {
@@ -208,11 +213,11 @@ function readInput(key) {
 }
 
 function normalizeField(key) {
-  if (key === "spacing") state.spacing = Math.max(0, state.spacing || 0);
+  if (key === "spacing") state.spacing = roundLikeExcel(Math.max(0, state.spacing || 0), MEASUREMENT_DIGITS);
   if (key === "rows") state.rows = Math.max(0, Math.round(state.rows || 0));
-  if (key === "initialOffset") state.initialOffset = state.initialOffset || 0;
-  if (key === "measured12") state.measured12 = Math.max(0, state.measured12 || 0);
-  if (key === "measured23") state.measured23 = Math.max(0, state.measured23 || 0);
+  if (key === "initialOffset") state.initialOffset = roundLikeExcel(state.initialOffset || 0, OFFSET_DIGITS);
+  if (key === "measured12") state.measured12 = roundLikeExcel(Math.max(0, state.measured12 || 0), MEASUREMENT_DIGITS);
+  if (key === "measured23") state.measured23 = roundLikeExcel(Math.max(0, state.measured23 || 0), MEASUREMENT_DIGITS);
 }
 
 function validate(values) {
@@ -234,24 +239,27 @@ function validate(values) {
 function calculate(values) {
   const turnFactor = values.turn === "right" ? 1 : -1;
   const hasWidthOverride = Number.isFinite(values.implementWidthOverride);
-  const implementWidth = hasWidthOverride ? values.implementWidthOverride : values.rows * values.spacing;
-  const referenceSpacing = hasWidthOverride && hasNumber(values.firstPassSpacing)
+  const implementWidth = terminalWidth(hasWidthOverride ? values.implementWidthOverride : values.rows * values.spacing);
+  const referenceSpacing = roundLikeExcel(hasWidthOverride && hasNumber(values.firstPassSpacing)
     ? Number(values.firstPassSpacing)
-    : values.spacing;
+    : values.spacing, MEASUREMENT_DIGITS);
+  const measured12 = roundLikeExcel(values.measured12, MEASUREMENT_DIGITS);
+  const measured23 = roundLikeExcel(values.measured23, MEASUREMENT_DIGITS);
+  const initialOffset = roundLikeExcel(values.initialOffset, OFFSET_DIGITS);
 
-  const measured12Delta = values.measured12 > 0 ? (values.measured12 - referenceSpacing) / 2 : 0;
-  const measured23Delta = values.measured23 > 0 ? (values.measured23 - referenceSpacing) / 2 : 0;
+  const measured12Delta = measured12 > 0 ? (measured12 - referenceSpacing) / 2 : 0;
+  const measured23Delta = measured23 > 0 ? (measured23 - referenceSpacing) / 2 : 0;
   const leftCorrection = (implementWidth / 2) - measured12Delta;
   const rightCorrection = (implementWidth / 2) - measured23Delta;
-  const correctedWidth = roundTo(leftCorrection + rightCorrection, 3);
-  const correctedOffset = roundLikeExcel((((leftCorrection - rightCorrection) / 2) * turnFactor) + values.initialOffset, 3);
+  const correctedWidth = terminalWidth(leftCorrection + rightCorrection);
+  const correctedOffset = roundLikeExcel((((leftCorrection - rightCorrection) / 2) * turnFactor) + initialOffset, OFFSET_DIGITS);
 
   return {
     implementWidth,
     correctedWidth,
     correctedOffset,
-    widthDelta: correctedWidth - implementWidth,
-    offsetDelta: correctedOffset - values.initialOffset,
+    widthDelta: terminalWidth(correctedWidth - implementWidth),
+    offsetDelta: roundLikeExcel(correctedOffset - initialOffset, OFFSET_DIGITS),
     turnFactor
   };
 }
@@ -269,21 +277,21 @@ function render() {
   outputs.error.textContent = error;
 
   if (error) {
-    saveButton.disabled = true;
-    copyButton.disabled = true;
+    if (saveButton) saveButton.disabled = true;
+    if (copyButton) copyButton.disabled = true;
     secondStageButton.disabled = true;
     return;
   }
 
-  saveButton.disabled = false;
-  copyButton.disabled = false;
+  if (saveButton) saveButton.disabled = false;
+  if (copyButton) copyButton.disabled = false;
   latest = calculate(state);
   secondStageButton.disabled = state.rows <= 0
     || !Number.isFinite(latest.correctedWidth)
     || !Number.isFinite(latest.correctedOffset);
 
-  outputs.implementWidth.textContent = formatMeters(latest.implementWidth, 2);
-  outputs.correctedWidth.textContent = formatMeters(latest.correctedWidth, 3);
+  outputs.implementWidth.textContent = formatTerminalWidth(latest.implementWidth);
+  outputs.correctedWidth.textContent = formatTerminalWidth(latest.correctedWidth);
   outputs.correctedOffset.textContent = formatSignedMeters(latest.correctedOffset);
   const turnRight = state.turn === "right";
   const measured12Text = `1ª-2ª: ${formatMeters(state.measured12, 2)}`;
@@ -309,7 +317,10 @@ function render() {
 
 function loadHistory() {
   try {
-    return JSON.parse(localStorage.getItem(storageKeys.history)) || [];
+    const saved = JSON.parse(localStorage.getItem(storageKeys.history));
+    return Array.isArray(saved)
+      ? saved.filter((item) => item && typeof item === "object" && !Array.isArray(item))
+      : [];
   } catch {
     return [];
   }
@@ -336,6 +347,8 @@ function saveHistory() {
 }
 
 function renderHistory() {
+  if (!outputs.history || !outputs.exportWord) return;
+
   const history = loadHistory();
   const validIds = new Set(history.map((item) => String(item.id)));
   selectedHistoryIds = new Set([...selectedHistoryIds].filter((id) => validIds.has(id)));
@@ -349,21 +362,26 @@ function renderHistory() {
   outputs.history.innerHTML = history.map((item) => {
     const itemId = String(item.id);
     const selected = selectedHistoryIds.has(itemId);
+    const values = { ...defaults, ...(item.values || {}) };
+    const result = { ...calculate(values), ...(item.result || {}) };
+    const itemName = escapeHtml(item.name || item.date || "Registro");
+    const itemDate = escapeHtml(item.date || "");
+    const safeItemId = escapeHtml(itemId);
 
     return `
-    <div class="history-item ${selected ? "selected" : ""}" data-history-id="${itemId}">
+    <div class="history-item ${selected ? "selected" : ""}" data-history-id="${safeItemId}">
       <label class="history-select">
-        <input type="checkbox" data-export-id="${itemId}" ${selected ? "checked" : ""}>
+        <input type="checkbox" data-export-id="${safeItemId}" ${selected ? "checked" : ""}>
         <span>Selecionar</span>
       </label>
-      <button class="history-open" type="button" data-restore-id="${itemId}">
+      <button class="history-open" type="button" data-restore-id="${safeItemId}">
         <span>
-        <strong>${item.name || item.date}</strong>
-        <span>${item.date} | ${item.values.rows || 0} Linhas | Virada ${item.values.turn === "right" ? "Direita" : "Esquerda"} | 1ª-2ª ${formatMeters(item.values.measured12, 2)}</span>
+        <strong>${itemName}</strong>
+        <span>${itemDate} | ${values.rows || 0} Linhas | Virada ${values.turn === "right" ? "Direita" : "Esquerda"} | 1ª-2ª ${formatMeters(values.measured12, 2)}</span>
       </span>
       <span>
-        <strong>${formatMeters(item.result.correctedWidth, 3)}</strong>
-        <span>${formatSignedMeters(item.result.correctedOffset)}</span>
+        <strong>${formatTerminalWidth(result.correctedWidth)}</strong>
+        <span>${formatSignedMeters(result.correctedOffset)}</span>
       </span>
       </button>
     </div>`;
@@ -401,7 +419,7 @@ function startSecondStage() {
 
   latest = calculate(state);
   const rows = Math.max(0, Math.round(state.rows || 0));
-  const correctedWidth = roundTo(latest.correctedWidth, 3);
+  const correctedWidth = terminalWidth(latest.correctedWidth);
   const firstPass = firstPassInfo(state, latest);
   const referenceSpacing = Math.max(0, firstPass.spacing || state.spacing || 0);
 
@@ -412,7 +430,7 @@ function startSecondStage() {
     implementWidthOverride: Math.max(0, correctedWidth || 0),
     firstPassRows: firstPass.rows,
     firstPassSpacing: firstPass.spacing,
-    firstPassWidth: roundTo(firstPass.width, 2),
+    firstPassWidth: terminalWidth(firstPass.width),
     initialOffset: latest.correctedOffset || 0,
     measured12: 0,
     measured23: 0
@@ -428,89 +446,14 @@ function resultText() {
     "Ajuste de Espaçamento Entre-Passadas",
     `Espaçamento Entre Linhas da Plantadeira: ${formatMeters(state.spacing, 2)}`,
     `Quantidade de Linhas: ${state.rows}`,
-    `Largura do Implemento Calculada: ${formatMeters(latest.implementWidth, 2)}`,
+    `Largura do Implemento Calculada: ${formatTerminalWidth(latest.implementWidth)}`,
     `Deslocamento Lateral do Implemento: ${formatSignedMeters(state.initialOffset)}`,
     `Virada Entre a 1ª e a 2ª Passada: ${state.turn === "right" ? "Direita" : "Esquerda"}`,
     `Espaçamento Medido Entre a 1ª e a 2ª Passada: ${formatMeters(state.measured12, 2)}`,
     `Espaçamento Medido Entre a 2ª e a 3ª Passada: ${formatMeters(state.measured23, 2)}`,
-    `2Âª Passada - Largura Final Corrigida: ${formatMeters(latest.correctedWidth, 3)}`,
+    `2ª Passada - Largura Final Corrigida: ${formatTerminalWidth(latest.correctedWidth)}`,
     `Deslocamento Lateral Corrigido: ${formatSignedMeters(latest.correctedOffset)}`
   ].join("\n");
-}
-
-function wordParagraph(text, options = {}) {
-  const size = options.size || 22;
-  const bold = options.bold ? "<w:b/>" : "";
-  const spacing = options.after ? `<w:spacing w:after="${options.after}"/>` : "";
-  return `<w:p><w:pPr>${spacing}</w:pPr><w:r><w:rPr>${bold}<w:sz w:val="${size}"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
-}
-
-function wordTableRow(label, value) {
-  return `
-    <w:tr>
-      <w:tc><w:tcPr><w:tcW w:w="4300" w:type="dxa"/></w:tcPr><w:p><w:r><w:rPr><w:b/></w:rPr><w:t>${escapeXml(label)}</w:t></w:r></w:p></w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="4300" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>${escapeXml(value)}</w:t></w:r></w:p></w:tc>
-    </w:tr>`;
-}
-
-function wordTable(rows) {
-  return `
-    <w:tbl>
-      <w:tblPr>
-        <w:tblW w:w="8600" w:type="dxa"/>
-        <w:tblBorders>
-          <w:top w:val="single" w:sz="6" w:space="0" w:color="BEBEBE"/>
-          <w:left w:val="single" w:sz="6" w:space="0" w:color="BEBEBE"/>
-          <w:bottom w:val="single" w:sz="6" w:space="0" w:color="BEBEBE"/>
-          <w:right w:val="single" w:sz="6" w:space="0" w:color="BEBEBE"/>
-          <w:insideH w:val="single" w:sz="6" w:space="0" w:color="D9D9D9"/>
-          <w:insideV w:val="single" w:sz="6" w:space="0" w:color="D9D9D9"/>
-        </w:tblBorders>
-      </w:tblPr>
-      ${rows.map(([label, value]) => wordTableRow(label, value)).join("")}
-    </w:tbl>`;
-}
-
-function historyRows(item) {
-  const values = { ...defaults, ...(item.values || {}) };
-  const calculated = calculate(values);
-  const result = { ...calculated, ...(item.result || {}) };
-
-  return [
-    ["Nome do Registro", item.name || item.date || "Registro"],
-    ["Data", item.date || ""],
-    ["Espaçamento Entre Linhas da Plantadeira", formatMeters(values.spacing, 2)],
-    ["Quantidade de Linhas", String(values.rows || 0)],
-    ["Largura do Implemento Calculada", formatMeters(result.implementWidth, 2)],
-    ["Deslocamento Lateral do Implemento", formatSignedMeters(values.initialOffset)],
-    ["Virada Entre a 1ª e a 2ª Passada", values.turn === "right" ? "Direita" : "Esquerda"],
-    ["Espaçamento Medido Entre a 1ª e a 2ª Passada", formatMeters(values.measured12, 2)],
-    ["Espaçamento Medido Entre a 2ª e a 3ª Passada", formatMeters(values.measured23, 2)],
-    ["Largura do Implemento Corrigido", formatMeters(result.correctedWidth, 3)],
-    ["Deslocamento Lateral Corrigido", formatSignedMeters(result.correctedOffset)]
-  ];
-}
-
-function buildWordDocumentXml(history) {
-  const generatedAt = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-  const records = history.map((item, index) => (
-    wordParagraph(`${index + 1}. ${item.name || item.date || "Registro"}`, { bold: true, size: 26, after: 120 })
-    + wordTable(historyRows(item))
-    + wordParagraph("", { after: 220 })
-  )).join("");
-
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:body>
-    ${wordParagraph("Histórico de Ajuste Entre Passadas", { bold: true, size: 34, after: 180 })}
-    ${wordParagraph(`Gerado em ${generatedAt}`, { size: 20, after: 260 })}
-    ${records}
-    <w:sectPr>
-      <w:pgSz w:w="11906" w:h="16838"/>
-      <w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/>
-    </w:sectPr>
-  </w:body>
-</w:document>`;
 }
 
 function reportRecordTitle(item, index) {
@@ -575,85 +518,6 @@ function wordCell(content, options = {}) {
   const vertical = options.vertical ? `<w:vAlign w:val="${options.vertical}"/>` : "";
   const borders = options.noBorders ? "" : wordBorders(options.borderColor || "B7B7B7", options.borderSize || 6);
   return `<w:tc><w:tcPr>${width}${gridSpan}${shading}${vertical}${borders}</w:tcPr>${content}</w:tc>`;
-}
-
-function wordHeaderTable(generatedAt, recordCount, hasLogo) {
-  return `<w:tbl>
-    <w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="8" w:space="0" w:color="777777"/><w:left w:val="single" w:sz="8" w:space="0" w:color="777777"/><w:bottom w:val="single" w:sz="8" w:space="0" w:color="777777"/><w:right w:val="single" w:sz="8" w:space="0" w:color="777777"/><w:insideH w:val="single" w:sz="6" w:space="0" w:color="B7B7B7"/><w:insideV w:val="single" w:sz="6" w:space="0" w:color="B7B7B7"/></w:tblBorders></w:tblPr>
-    <w:tr>
-      ${wordCell(wordLogoDrawing(hasLogo), { width: 2600, vertical: "center", shading: "F2F2F2" })}
-      ${wordCell(
-        wordParagraph("RELATÓRIO TÉCNICO", { bold: true, size: 24, color: "5F6368", after: 80, align: "center" })
-        + wordParagraph("Configuração de Espaçamento Entre-Passadas da Plantadeira", { bold: true, size: 28, color: "2F3033", after: 60, align: "center" })
-        + wordParagraph("Comparativo da 1ª Passada e do Ajuste Final", { size: 20, color: "5F6368", after: 0, align: "center" }),
-        { width: 6760, vertical: "center" }
-      )}
-    </w:tr>
-    <w:tr>
-      ${wordCell(wordParagraph("Data de Exportação", { bold: true, size: 18, color: "5F6368", after: 0 }), { width: 2600, shading: "EDEDED" })}
-      ${wordCell(wordParagraph(generatedAt, { size: 18, after: 0 }), { width: 6760 })}
-    </w:tr>
-    <w:tr>
-      ${wordCell(wordParagraph("Registros Selecionados", { bold: true, size: 18, color: "5F6368", after: 0 }), { width: 2600, shading: "EDEDED" })}
-      ${wordCell(wordParagraph(String(recordCount), { size: 18, after: 0 }), { width: 6760 })}
-    </w:tr>
-  </w:tbl>`;
-}
-
-function wordTableRow(label, value) {
-  return `<w:tr>
-    ${wordCell(wordParagraph(label, { bold: true, size: 20, color: "666666", after: 0 }), { width: 4300, shading: "F0F0F0" })}
-    ${wordCell(wordParagraph(value, { size: 20, color: "2F3033", after: 0 }), { width: 5060 })}
-  </w:tr>`;
-}
-
-function wordTable(rows) {
-  return `<w:tbl>
-    <w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="6" w:space="0" w:color="B7B7B7"/><w:left w:val="single" w:sz="6" w:space="0" w:color="B7B7B7"/><w:bottom w:val="single" w:sz="6" w:space="0" w:color="B7B7B7"/><w:right w:val="single" w:sz="6" w:space="0" w:color="B7B7B7"/><w:insideH w:val="single" w:sz="6" w:space="0" w:color="D7D7D7"/><w:insideV w:val="single" w:sz="6" w:space="0" w:color="D7D7D7"/></w:tblBorders></w:tblPr>
-    ${rows.map(([label, value]) => wordTableRow(label, value)).join("")}
-  </w:tbl>`;
-}
-
-function comparisonRows(history) {
-  if (history.length < 2) return [];
-
-  const first = historySnapshot(history[0]);
-  const second = historySnapshot(history[1]);
-
-  return [
-    ["1ª Passada - Largura Original", formatMeters(first.result.implementWidth, 2)],
-    ["1ª Passada - Deslocamento Original", formatSignedMeters(first.values.initialOffset)],
-    ["Ajuste Encontrado na 1ª Passada", `${formatMeters(first.result.correctedWidth, 3)} / ${formatSignedMeters(first.result.correctedOffset)}`],
-    ["2ª Passada - Largura Aplicada", formatMeters(second.result.implementWidth, 2)],
-    ["2ª Passada - Deslocamento Aplicado", formatSignedMeters(second.values.initialOffset)],
-    ["Resultado Final da 2ª Passada", `${formatMeters(second.result.correctedWidth, 3)} / ${formatSignedMeters(second.result.correctedOffset)}`]
-  ];
-}
-
-function buildWordDocumentXml(history, hasLogo = false) {
-  const generatedAt = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-  const summaryRows = comparisonRows(history);
-  const summary = summaryRows.length
-    ? wordParagraph("Resumo Comparativo", { bold: true, size: 26, color: "2F3033", before: 260, after: 100 })
-      + wordTable(summaryRows)
-    : "";
-  const records = history.map((item, index) => (
-    wordParagraph(reportRecordTitle(item, index), { bold: true, size: 26, color: "2F3033", before: 260, after: 100 })
-    + wordTable(historyRows(item))
-  )).join("");
-
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-  <w:body>
-    ${wordHeaderTable(generatedAt, history.length, hasLogo)}
-    ${summary}
-    ${records}
-    <w:sectPr>
-      <w:pgSz w:w="11906" w:h="16838"/>
-      <w:pgMar w:top="850" w:right="850" w:bottom="850" w:left="850" w:header="708" w:footer="708" w:gutter="0"/>
-    </w:sectPr>
-  </w:body>
-</w:document>`;
 }
 
 function reportCellText(text, options = {}) {
@@ -727,20 +591,6 @@ function reportPairTable(title, rows) {
   </w:tbl>`;
 }
 
-function reportSummaryTable(rows) {
-  return `<w:tbl>
-    <w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/><w:left w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/><w:bottom w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/><w:right w:val="single" w:sz="6" w:space="0" w:color="BFBFBF"/><w:insideH w:val="single" w:sz="6" w:space="0" w:color="D9D9D9"/><w:insideV w:val="single" w:sz="6" w:space="0" w:color="D9D9D9"/></w:tblBorders></w:tblPr>
-    <w:tr>${reportCellText("RESUMO DO AJUSTE", { bold: true, size: 20, align: "center", shading: "D9D9D9", gridSpan: 4, width: 9360 })}</w:tr>
-    <w:tr>
-      ${reportCellText("ETAPA", { bold: true, align: "center", shading: "D9D9D9", width: 2340 })}
-      ${reportCellText("LARGURA", { bold: true, align: "center", shading: "D9D9D9", width: 2340 })}
-      ${reportCellText("DESLOCAMENTO", { bold: true, align: "center", shading: "D9D9D9", width: 2340 })}
-      ${reportCellText("OBSERVAÇÃO", { bold: true, align: "center", shading: "D9D9D9", width: 2340 })}
-    </w:tr>
-    ${rows.map((row) => `<w:tr>${row.map((cell) => reportCellText(cell, { align: "center", width: 2340 })).join("")}</w:tr>`).join("")}
-  </w:tbl>`;
-}
-
 function reportTerminalHighlight(item) {
   const { result } = historySnapshot(item);
 
@@ -749,7 +599,7 @@ function reportTerminalHighlight(item) {
     <w:tr>${reportCellText("PREENCHER NO TERMINAL", { bold: true, size: 22, align: "center", color: "FFFFFF", shading: "595959", gridSpan: 2, width: 9360 })}</w:tr>
     <w:tr>
       ${reportCellText("Largura do Implemento Corrigida", { bold: true, size: 22, width: 4680, shading: "F2F2F2" })}
-      ${reportCellText(formatMeters(result.correctedWidth, 3), { bold: true, size: 28, align: "center", width: 4680 })}
+      ${reportCellText(formatTerminalWidth(result.correctedWidth), { bold: true, size: 28, align: "center", width: 4680 })}
     </w:tr>
     <w:tr>
       ${reportCellText("Deslocamento Lateral Corrigido", { bold: true, size: 22, width: 4680, shading: "F2F2F2" })}
@@ -759,7 +609,7 @@ function reportTerminalHighlight(item) {
 }
 
 function firstPassFormulaText(info) {
-  return `${Math.round(info.rows || 0)} linhas x ${formatMeters(info.spacing, 2)} = ${formatMeters(info.width, 2)}`;
+  return `${Math.round(info.rows || 0)} linhas x ${formatMeters(info.spacing, MEASUREMENT_DIGITS)} = ${formatTerminalWidth(info.width)}`;
 }
 
 function historyRows(item) {
@@ -774,28 +624,13 @@ function historyRows(item) {
     ["1ª Passada - Largura Original", firstPassFormulaText(firstPass)],
     ["Espaçamento Entre Linhas da Plantadeira", formatMeters(values.spacing, 2)],
     ["Quantidade de Linhas", String(values.rows || 0)],
-    ["Largura Aplicada Nesta Passada", formatMeters(result.implementWidth, 2)],
+    ["Largura Aplicada Nesta Passada", formatTerminalWidth(result.implementWidth)],
     ["Deslocamento Lateral do Implemento", formatSignedMeters(values.initialOffset)],
     ["Virada Entre a 1ª e a 2ª Passada", values.turn === "right" ? "Direita" : "Esquerda"],
     ["Espaçamento Medido Entre a 1ª e a 2ª Passada", formatMeters(values.measured12, 2)],
     ["Espaçamento Medido Entre a 2ª e a 3ª Passada", formatMeters(values.measured23, 2)],
-    ["2ª Passada - Largura Final Corrigida", formatMeters(result.correctedWidth, 3)],
+    ["2ª Passada - Largura Final Corrigida", formatTerminalWidth(result.correctedWidth)],
     ["Deslocamento Lateral Corrigido", formatSignedMeters(result.correctedOffset)]
-  ];
-}
-
-function comparisonRows(history) {
-  if (history.length < 2) return [];
-
-  const first = historySnapshot(history[0]);
-  const second = historySnapshot(history[1]);
-  const firstPass = firstPassInfo(first.values, first.result);
-
-  return [
-    ["1ª Passada", formatMeters(firstPass.width, 2), formatSignedMeters(first.values.initialOffset), firstPassFormulaText(firstPass)],
-    ["Correção Calculada", formatMeters(first.result.correctedWidth, 3), formatSignedMeters(first.result.correctedOffset), "Valores transferidos para a 2ª passada"],
-    ["2ª Passada", formatMeters(second.result.implementWidth, 3), formatSignedMeters(second.values.initialOffset), "Valores aplicados no terminal"],
-    ["Resultado Final", formatMeters(second.result.correctedWidth, 3), formatSignedMeters(second.result.correctedOffset), "Ajuste final corrigido"]
   ];
 }
 
@@ -835,7 +670,7 @@ function firstPassMeasurementRows(item) {
     ["Virada Entre a 1ª e a 2ª Passada", values.turn === "right" ? "Direita" : "Esquerda"],
     ["Medição Entre 1ª e 2ª Passada", formatMeters(values.measured12, 2)],
     ["Medição Entre 2ª e 3ª Passada", formatMeters(values.measured23, 2)],
-    ["Largura Calculada Para Aplicar na 2ª Passada", formatMeters(result.correctedWidth, 3)],
+    ["Largura Calculada Para Aplicar na 2ª Passada", formatTerminalWidth(result.correctedWidth)],
     ["Deslocamento Calculado Para Aplicar na 2ª Passada", formatSignedMeters(result.correctedOffset)]
   ];
 }
@@ -846,7 +681,7 @@ function secondPassAppliedRows(item) {
   return [
     ["Registro", item.name || item.date || "2ª Passada"],
     ["Data", item.date || ""],
-    ["Largura Final Aplicada no Terminal", formatMeters(result.implementWidth, 3)],
+    ["Largura Final Aplicada no Terminal", formatTerminalWidth(result.implementWidth)],
     ["Deslocamento Final Aplicado no Terminal", formatSignedMeters(values.initialOffset)],
     ["Espaçamento Entre Linhas Resultante", formatMeters(values.spacing, 2)],
     ["Quantidade de Linhas", String(values.rows || 0)]
@@ -860,7 +695,7 @@ function secondPassCheckRows(item) {
     ["Virada Entre a 1ª e a 2ª Passada", values.turn === "right" ? "Direita" : "Esquerda"],
     ["Medição Entre 1ª e 2ª Passada", formatMeters(values.measured12, 2)],
     ["Medição Entre 2ª e 3ª Passada", formatMeters(values.measured23, 2)],
-    ["Largura Conferida Após a 2ª Passada", formatMeters(result.correctedWidth, 3)],
+    ["Largura Conferida Após a 2ª Passada", formatTerminalWidth(result.correctedWidth)],
     ["Deslocamento Conferido Após a 2ª Passada", formatSignedMeters(result.correctedOffset)]
   ];
 }
@@ -872,9 +707,9 @@ function finalResultRows(firstItem, secondItem) {
 
   return [
     ["Largura Original da 1ª Passada", firstPassFormulaText(original)],
-    ["Correção Calculada Após a 1ª Passada", `${formatMeters(first.result.correctedWidth, 3)} / ${formatSignedMeters(first.result.correctedOffset)}`],
-    ["Valores Aplicados na 2ª Passada", `${formatMeters(second.result.implementWidth, 3)} / ${formatSignedMeters(second.values.initialOffset)}`],
-    ["Resultado Final Corrigido", `${formatMeters(second.result.correctedWidth, 3)} / ${formatSignedMeters(second.result.correctedOffset)}`]
+    ["Correção Calculada Após a 1ª Passada", `${formatTerminalWidth(first.result.correctedWidth)} / ${formatSignedMeters(first.result.correctedOffset)}`],
+    ["Valores Aplicados na 2ª Passada", `${formatTerminalWidth(second.result.implementWidth)} / ${formatSignedMeters(second.values.initialOffset)}`],
+    ["Resultado Final Corrigido", `${formatTerminalWidth(second.result.correctedWidth)} / ${formatSignedMeters(second.result.correctedOffset)}`]
   ];
 }
 
@@ -1072,7 +907,65 @@ function createHistoryDocx(history, logoBytes = null) {
   return createZip(files);
 }
 
-function downloadBlob(blob, fileName) {
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = String(reader.result || "");
+      resolve(result.includes(",") ? result.split(",")[1] : result);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function isCapacitorNative() {
+  const capacitor = window.Capacitor;
+  if (!capacitor) return false;
+  if (typeof capacitor.isNativePlatform === "function") return capacitor.isNativePlatform();
+  if (typeof capacitor.getPlatform === "function") return capacitor.getPlatform() !== "web";
+  return false;
+}
+
+async function saveBlobWithCapacitor(blob, fileName) {
+  const capacitor = window.Capacitor;
+  const plugins = capacitor && capacitor.Plugins ? capacitor.Plugins : {};
+  const Filesystem = plugins.Filesystem;
+  const Share = plugins.Share;
+
+  if (!isCapacitorNative() || !Filesystem || typeof Filesystem.writeFile !== "function") {
+    return false;
+  }
+
+  try {
+    const data = await blobToBase64(blob);
+    const savedFile = await Filesystem.writeFile({
+      path: fileName,
+      data,
+      directory: "CACHE",
+      recursive: true
+    });
+
+    if (Share && typeof Share.share === "function") {
+      await Share.share({
+        title: fileName,
+        text: "Relatório de ajuste entre-passadas.",
+        url: savedFile.uri,
+        dialogTitle: "Exportar relatório"
+      });
+    }
+
+    showToast("Relatório exportado com sucesso.");
+    return true;
+  } catch (error) {
+    console.warn("Falha ao exportar pelo aplicativo Android.", error);
+    return false;
+  }
+}
+
+async function downloadBlob(blob, fileName) {
+  if (await saveBlobWithCapacitor(blob, fileName)) return;
+
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -1081,6 +974,7 @@ function downloadBlob(blob, fileName) {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast("Relatório exportado com sucesso.");
 }
 
 async function loadReportLogo() {
@@ -1111,7 +1005,7 @@ async function exportHistoryWord() {
     : `relatorio-ajuste-entre-passadas-${date}`;
   const logoBytes = await loadReportLogo();
   const blob = createHistoryDocx(selectedHistory, logoBytes);
-  downloadBlob(blob, `${safeFileName(baseName)}.docx`);
+  await downloadBlob(blob, `${safeFileName(baseName)}.docx`);
 }
 
 async function copyResult() {
@@ -1138,11 +1032,12 @@ function showView(name) {
   document.querySelectorAll(".tab").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === name);
   });
-  document.querySelector("#calculatorView").classList.toggle("active", name === "calculator");
-  document.querySelector("#historyView").classList.toggle("active", name === "history");
+  document.querySelector("#calculatorView")?.classList.toggle("active", name === "calculator");
+  document.querySelector("#historyView")?.classList.toggle("active", name === "history");
 }
 
 function updateConnectionStatus() {
+  if (!outputs.status) return;
   outputs.status.textContent = navigator.onLine ? "Online" : "Offline Pronto";
 }
 
@@ -1186,21 +1081,21 @@ document.querySelectorAll("[data-turn]").forEach((button) => {
 document.querySelector("#newButton").addEventListener("click", startNewCalculation);
 document.querySelector("#secondStageButton").addEventListener("click", startSecondStage);
 
-document.querySelector("#saveButton").addEventListener("click", saveHistory);
-document.querySelector("#copyButton").addEventListener("click", copyResult);
-document.querySelector("#exportWordButton").addEventListener("click", exportHistoryWord);
+document.querySelector("#saveButton")?.addEventListener("click", saveHistory);
+document.querySelector("#copyButton")?.addEventListener("click", copyResult);
+document.querySelector("#exportWordButton")?.addEventListener("click", exportHistoryWord);
 
-document.querySelector("#clearHistoryButton").addEventListener("click", () => {
+document.querySelector("#clearHistoryButton")?.addEventListener("click", () => {
   localStorage.removeItem(storageKeys.history);
   renderHistory();
 });
 
-outputs.history.addEventListener("click", (event) => {
+outputs.history?.addEventListener("click", (event) => {
   const item = event.target.closest("[data-restore-id]");
   if (item) restoreHistory(item.dataset.restoreId);
 });
 
-outputs.history.addEventListener("change", (event) => {
+outputs.history?.addEventListener("change", (event) => {
   const checkbox = event.target.closest("[data-export-id]");
   if (!checkbox) return;
 

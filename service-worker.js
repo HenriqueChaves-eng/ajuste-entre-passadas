@@ -1,4 +1,4 @@
-const CACHE_NAME = "agres-espacamento-product-v48";
+const CACHE_NAME = "agres-espacamento-product-v54";
 const INDEX_URL = "./index.html";
 const APP_ASSETS = [
   "./",

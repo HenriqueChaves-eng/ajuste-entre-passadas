@@ -6,12 +6,12 @@
     <meta name="theme-color" content="#f4f5f6">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Ajuste Entre-Passadas">
-    <title>Ajuste de Espaçamento Entre-Passadas</title>
+    <meta name="apple-mobile-web-app-title" content="Agres Entre-Passadas">
+    <title>Agres Entre-Passadas</title>
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="assets/logo_agres.png">
     <link rel="icon" href="assets/logo_agres.png">
-    <link rel="stylesheet" href="styles.css?v=agres-product48">
+    <link rel="stylesheet" href="styles.css?v=agres-product54">
   </head>
   <body>
     <svg aria-hidden="true" class="sprite">
@@ -51,13 +51,7 @@
             <h1>Ajuste de Espaçamento Entre-Passadas</h1>
           </div>
         </div>
-        <span class="status-pill" id="connectionStatus">Offline Pronto</span>
       </header>
-
-      <nav class="tabs" aria-label="Visualização">
-        <button class="tab active" type="button" data-view="calculator">Cálculo</button>
-        <button class="tab" type="button" data-view="history">Histórico</button>
-      </nav>
 
       <section class="view active" id="calculatorView">
         <div class="workflow-actions" aria-label="Fluxo do cálculo">
@@ -98,7 +92,7 @@
               <div class="field">
                 <span>Largura do Implemento Calculada</span>
                 <div class="calculated-shell">
-                  <strong id="resultImplementWidth">0,000 m</strong>
+                  <strong id="resultImplementWidth">0,00 m</strong>
                 </div>
               </div>
 
@@ -169,14 +163,14 @@
                       <line x1="136" y1="269" x2="136" y2="287"></line>
                       <line x1="360" y1="269" x2="360" y2="287"></line>
                       <rect x="166" y="258" width="164" height="28" rx="14"></rect>
-                      <text id="fieldGapLeft" x="248" y="277">2ª-3ª: 0,000 m</text>
+                      <text id="fieldGapLeft" x="248" y="277">2ª-3ª: 0,00 m</text>
                     </g>
                     <g class="gap-measure gap-right">
                       <line x1="360" y1="278" x2="584" y2="278"></line>
                       <line x1="360" y1="269" x2="360" y2="287"></line>
                       <line x1="584" y1="269" x2="584" y2="287"></line>
                       <rect x="390" y="258" width="164" height="28" rx="14"></rect>
-                      <text id="fieldGapRight" x="472" y="277">1ª-2ª: 0,000 m</text>
+                      <text id="fieldGapRight" x="472" y="277">1ª-2ª: 0,00 m</text>
                     </g>
                   </svg>
                 </div>
@@ -202,16 +196,6 @@
 
             <p class="form-error" id="formError" role="alert"></p>
 
-            <div class="action-row">
-              <button class="primary-button" type="button" id="saveButton">
-                <svg><use href="#icon-save"></use></svg>
-                Salvar
-              </button>
-              <button class="secondary-button" type="button" id="copyButton">
-                <svg><use href="#icon-copy"></use></svg>
-                Copiar
-              </button>
-            </div>
           </section>
 
           <aside class="card result-card" aria-labelledby="resultsTitle">
@@ -223,7 +207,7 @@
             <div class="terminal-values">
               <div class="terminal-value">
                 <span>Largura do Implemento Corrigida</span>
-                <strong id="resultCorrectedWidth">0,000 m</strong>
+                <strong id="resultCorrectedWidth">0,00 m</strong>
               </div>
               <div class="terminal-value main">
                 <span>Deslocamento Lateral Corrigido</span>
@@ -235,28 +219,9 @@
         </div>
       </section>
 
-      <section class="view" id="historyView">
-        <section class="card history-card" aria-labelledby="historyTitle">
-          <div class="card-heading">
-            <p>Memória Local</p>
-            <h2 id="historyTitle">Histórico</h2>
-          </div>
-          <div class="history-actions">
-            <button class="secondary-button" type="button" id="exportWordButton">
-              <svg><use href="#icon-download"></use></svg>
-              Exportar Word
-            </button>
-            <button class="secondary-button" type="button" id="clearHistoryButton">
-              <svg><use href="#icon-trash"></use></svg>
-              Limpar Histórico
-            </button>
-          </div>
-          <div class="history-list" id="historyList"></div>
-        </section>
-      </section>
     </main>
     <div class="toast" id="toastMessage" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=agres-product48"></script>
+    <script src="app.js?v=agres-product54"></script>
   </body>
 </html>
